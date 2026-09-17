@@ -6,7 +6,7 @@ function newPlayer(startGun){
     dmgMult:1,cdMult:1,proj:1,pierce:0,rangeMult:1,speedMult:1,crit:0,regen:0,
     killHeal:0,shieldMax:0,shield:0,shieldT:0,up:{},
     gun:startGun||'ak',owned:{ak:true,pistol:true},fireT:0,muzzle:0,recoil:0,switchT:0,vehicleKind:null,invincT:0,
-    jet:false,fuel:0,fuelMax:0};
+    jet:false,fuel:0,fuelMax:0,o2:12,o2Max:12,swim:false,drowning:false};
 }
 function grantGuns(){
   for(const gid of GUNLIST){
@@ -18,7 +18,8 @@ function grantGuns(){
 }
 function eyeY(){
   const lift=player.vehicleKind==='heli'?12:(player.vehicleKind==='tank'?2.4:0);   // 载具视角高度
-  return terrainH(player.x,player.z)+1.62+player.flyZ+lift;
+  // 深水中视线钳到水面（与 updateCamera 的 groundY 完全一致，保证子弹从相机位置射出）
+  return Math.max(terrainH(player.x,player.z),WATER_Y-0.4)+1.62+player.flyZ+lift;
 }
 function switchGun(gid){
   const p=player;
@@ -68,14 +69,15 @@ function updatePlayer(dt){
   const sprint=keys.has('shift');
   const moving=fw||st;
   const dx=-Math.sin(p.yaw),dz=-Math.cos(p.yaw);
+  const gh0=terrainH(p.x,p.z);
+  const swimming=!p.vehicleKind&&gh0<WATER_Y+0.3&&p.flyZ<0.4;
+  p.swim=swimming;
   if(moving){
     const l=Math.hypot(fw,st);fw/=l;st/=l;
     let sp;
     if(p.vehicleKind==='tank')sp=7.5;                       // 坦克：慢但硬
     else if(p.vehicleKind==='heli')sp=13;                   // 直升机：快速机动
     else sp=(sprint?9.2:6.2)*p.speedMult;
-    const gh0=terrainH(p.x,p.z);
-    const swimming=!p.vehicleKind&&gh0<WATER_Y+0.3;
     if(swimming){
       sp*=0.72;                                        // 游泳比走路慢但不至于爬行
       // 爬坡助力：朝岸（前方地势更高）游时加速，保证总能离开水域
@@ -87,6 +89,19 @@ function updatePlayer(dt){
     tryMoveXZ(p.x+(dx*fw-dz*st)*sp*dt,p.z+(dz*fw+dx*st)*sp*dt);
     p.stepT-=dt;
     if(p.stepT<=0&&p.flyZ<0.3&&!swimming){p.stepT=sprint?0.28:0.38;sfx.step();}
+  }
+  // ==== 溺水：氧气耗尽后持续掉血（乘坐载具 / 喷气悬停时豁免） ====
+  if(swimming){
+    p.o2=Math.max(0,p.o2-dt);
+    if(p.o2===0){
+      if(!p.drowning){p.drowning=true;popupMsg('⚠ 氧气耗尽 · 溺水掉血中！');sfx.hurt();}
+      p.hp-=10*dt;
+      vigHit=Math.max(vigHit,0.3);
+      if(p.hp<=0){p.hp=0;die();return;}
+    }
+  }else{
+    p.o2=Math.min(p.o2Max,p.o2+dt*3);                  // 上岸后氧气快速恢复
+    p.drowning=false;
   }
   // ==== 喷气飞天 ====
   const wantFly=p.jet&&keys.has(' ');
@@ -129,7 +144,7 @@ function updatePlayer(dt){
   for(const pk of pickups){
     pk.t+=dt;
     pk.mesh.rotation.y+=dt*2;
-    pk.mesh.position.y=terrainH(pk.x,pk.z)+0.45+Math.sin(pk.t*3)*0.1;
+    pk.mesh.position.y=Math.max(terrainH(pk.x,pk.z),WATER_Y-0.15)+0.45+Math.sin(pk.t*3)*0.1;   // 落水医疗包浮在水面
     const dd=dist2D(p.x,p.z,pk.x,pk.z);
     if(dd<6){const k=3*dt/Math.max(0.5,dd);pk.x+=(p.x-pk.x)*k;pk.z+=(p.z-pk.z)*k;}
     if(dd<0.9){

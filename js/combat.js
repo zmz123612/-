@@ -138,9 +138,10 @@ function hitscan(origin,dir,G,p){
 function damageEnemy(e,dmg,crit){
   if(e.dead)return;
   e.hp-=dmg;e.flash=0.1;e.lastHitT=tGlobal;
-  if(!e.alert){e.alert=true;addFloat3D(e.x,terrainH(e.x,e.z)+2.4,e.z,'!','#ff5040',20);alertEnemies(e.x,e.z,18);}  // 中弹必惊动并呼救
-  addFloat3D(e.x,terrainH(e.x,e.z)+2.1,e.z,''+Math.round(dmg),crit?'#ffd24a':'#fff',crit?19:14);
-  const ey=terrainH(e.x,e.z)+1.1;
+  const my=e.mdl.group.position.y;                     // 模型实时高度（泅渡时在水面而非湖底）
+  if(!e.alert){e.alert=true;addFloat3D(e.x,my+2.4,e.z,'!','#ff5040',20);alertEnemies(e.x,e.z,18);}  // 中弹必惊动并呼救
+  addFloat3D(e.x,my+2.1,e.z,''+Math.round(dmg),crit?'#ffd24a':'#fff',crit?19:14);
+  const ey=my+1.1;
   for(let i=0;i<(crit?6:3);i++)spawnP(e.x,ey,e.z,rnd(-2,2),rnd(0.5,2.5),rnd(-2,2),0.4,0.55,0.08,0.06);
   hitMark=0.14;hitCrit=crit;
   crit?sfx.crit():sfx.hit();

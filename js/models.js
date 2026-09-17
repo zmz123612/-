@@ -20,29 +20,6 @@ function camoTexture(base,cols){
   t.magFilter=THREE.NearestFilter;
   return t;
 }
-/* 脸部贴图（眉/眼/鼻/嘴/下颌阴影） */
-function faceTexture(){
-  const c=document.createElement('canvas');c.width=64;c.height=64;
-  const g=c.getContext('2d');
-  g.fillStyle='#c9a57e';g.fillRect(0,0,64,64);
-  const sh=g.createLinearGradient(0,0,0,64);
-  sh.addColorStop(0,'rgba(0,0,0,0)');sh.addColorStop(1,'rgba(60,30,10,0.25)');
-  g.fillStyle=sh;g.fillRect(0,0,64,64);
-  g.fillStyle='#fff';
-  g.beginPath();g.ellipse(20,26,5,3.4,0,0,TAU);g.fill();
-  g.beginPath();g.ellipse(44,26,5,3.4,0,0,TAU);g.fill();
-  g.fillStyle='#2a1e12';
-  g.beginPath();g.arc(21,26,2.1,0,TAU);g.fill();
-  g.beginPath();g.arc(43,26,2.1,0,TAU);g.fill();
-  g.strokeStyle='#3a2a18';g.lineWidth=2.4;
-  g.beginPath();g.moveTo(14,19);g.lineTo(26,21);g.stroke();
-  g.beginPath();g.moveTo(50,19);g.lineTo(38,21);g.stroke();
-  g.strokeStyle='rgba(80,45,20,0.55)';g.lineWidth=1.6;
-  g.beginPath();g.moveTo(32,30);g.lineTo(31,38);g.stroke();
-  g.strokeStyle='#7a4a3a';g.lineWidth=2.2;
-  g.beginPath();g.moveTo(26,45);g.quadraticCurveTo(32,47.5,38,45);g.stroke();
-  return new THREE.CanvasTexture(c);
-}
 /* 木纹贴图（枪托/护木：纵向条纹+节疤） */
 function woodTexture(){
   const c=document.createElement('canvas');c.width=64;c.height=64;
@@ -94,7 +71,6 @@ const CAMO={
   h:camoTexture('#5c5240',['#4a4232','#6a5f46','#3e3a2a']),
   boss:camoTexture('#4c2a20',['#3a2018','#5e3626','#301a12']),
 };
-const FACE_TEX=faceTexture();
 const WOOD_TEX=woodTexture();
 const METAL_TEX=metalTexture();
 
@@ -102,9 +78,9 @@ const METAL_TEX=metalTexture();
 const M={
   cloth:c=>new THREE.MeshStandardMaterial({map:CAMO[c],roughness:0.94,metalness:0,envMapIntensity:0.28}),
   clothDark:c=>new THREE.MeshStandardMaterial({map:CAMO[c],color:0x8a8a8a,roughness:0.92,envMapIntensity:0.25}),
-  vest:c=>new THREE.MeshStandardMaterial({map:CAMO[c],color:0x777777,roughness:0.85,envMapIntensity:0.3}),
+  gear:c=>new THREE.MeshStandardMaterial({color:{b:0x4c463a,g:0x3a4036,h:0x464134,boss:0x2e211a}[c],roughness:0.87,metalness:0.06,envMapIntensity:0.32}),
+  bala:()=>new THREE.MeshStandardMaterial({color:0x2c2a24,roughness:0.92,metalness:0,envMapIntensity:0.28}),
   helm:c=>new THREE.MeshStandardMaterial({color:{b:0x4c483a,g:0x3a4034,h:0x443e30,boss:0x2e1c14}[c],roughness:0.55,metalness:0.3,envMapIntensity:0.55}),
-  face:()=>new THREE.MeshStandardMaterial({map:FACE_TEX,roughness:0.65,envMapIntensity:0.35}),
   skin:()=>new THREE.MeshStandardMaterial({color:0xc9a57e,roughness:0.7,envMapIntensity:0.35}),
   dark:()=>new THREE.MeshStandardMaterial({color:0x241f16,roughness:0.8,metalness:0.05,envMapIntensity:0.35}),
   gun:()=>new THREE.MeshStandardMaterial({map:METAL_TEX,roughness:0.42,metalness:0.62,envMapIntensity:0.75}),
@@ -178,10 +154,10 @@ function makeSoldier(t){
   const g=new THREE.Group();
   const boss=t==='boss',heavy=t==='h';
   const sc=boss?2.0:heavy?1.32:1;
-  const cloth=M.cloth(t),clothDark=M.clothDark(t),vestM=M.vest(t),helmM=M.helm(t);
-  const faceM=M.face(),skinM=M.skin(),darkM=M.dark(),bandM=M.band();
-  const mats=[cloth,vestM,helmM];
-  // ---- 躯干（胶囊胸腹 + 战术背心） ----
+  const cloth=M.cloth(t),clothDark=M.clothDark(t),vestM=M.gear(t),helmM=M.helm(t);
+  const skinM=M.skin(),darkM=M.dark(),bandM=M.band(),balaM=M.bala();
+  const mats=[cloth,vestM,helmM,balaM];
+  // ---- 躯干（胶囊胸腹 + 战术背心 + 肩章 + 小型突击背包） ----
   const torso=new THREE.Group();torso.position.y=0.98;g.add(torso);
   const chest=capsuleMesh(0.19,0.3,cloth);
   chest.scale.set(1.25,1,0.72);
@@ -189,27 +165,27 @@ function makeSoldier(t){
   const belt=new THREE.Mesh(new THREE.CylinderGeometry(0.21,0.21,0.07,10),darkM);
   belt.scale.set(1.22,1,0.74);belt.position.y=0.05;torso.add(belt);
   const vest=capsuleMesh(0.205,0.24,vestM);
-  vest.scale.set(1.24,1,0.76);vest.position.y=0.3;torso.add(vest);
-  for(let i=-1;i<=1;i++){
-    const p=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.13,0.05),darkM);
-    p.position.set(i*0.14,0.24,0.15);torso.add(p);
+  vest.scale.set(1.22,1,0.74);vest.position.y=0.28;torso.add(vest);
+  for(let i=-1;i<=1;i++){                             // 胸前弹匣袋（-Z 为正面，朝向玩家）
+    const p=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.12,0.045),vestM);
+    p.position.set(i*0.13,0.24,-0.155);torso.add(p);
   }
-  const pack=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.38,0.14),vestM);
-  pack.position.set(0,0.3,-0.2);torso.add(pack);
-  const roll=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.3,8),darkM);
-  roll.rotation.z=Math.PI/2;roll.position.set(0,0.44,-0.2);torso.add(roll);
-  const canteen=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.14,8),darkM);
-  canteen.position.set(0.19,0.12,-0.17);torso.add(canteen);
-  // ---- 头部（脸贴图 + 钢盔 + 护目镜） ----
+  for(const s2 of[-1,1]){                           // 肩章：加宽肩线，轮廓更挺
+    const pad=new THREE.Mesh(new THREE.SphereGeometry(0.095,8,6),cloth);
+    pad.scale.set(1.2,0.72,1);pad.position.set(s2*0.305,0.5,0);torso.add(pad);
+  }
+  const pack=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.24,0.09),vestM);   // 小型突击背包：挂背面(+Z)，正面看不到
+  pack.position.set(0,0.3,0.185);torso.add(pack);
+  const roll=new THREE.Mesh(new THREE.CylinderGeometry(0.042,0.042,0.22,8),cloth);  // 包顶卷毯
+  roll.rotation.z=Math.PI/2;roll.position.set(0,0.44,0.185);torso.add(roll);
+  // ---- 头部：巴拉克拉法帽（-Z 正面露眼缝）+ 钢盔 + 护目镜 ----
   const head=new THREE.Group();head.position.y=0.66;torso.add(head);
-  const face=new THREE.Mesh(new THREE.SphereGeometry(0.145,14,12),faceM);
-  face.scale.set(0.9,1.02,0.92);head.add(face);
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.07,6),skinM);
-  nose.rotation.x=Math.PI/2;nose.position.set(0,-0.01,0.145);head.add(nose);
-  const jaw=new THREE.Mesh(new THREE.SphereGeometry(0.1,10,8),skinM);
-  jaw.scale.set(0.95,0.7,0.9);jaw.position.set(0,-0.09,0.02);head.add(jaw);
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.1,8),skinM);
-  neck.position.y=-0.17;head.add(neck);
+  const bala=new THREE.Mesh(new THREE.SphereGeometry(0.145,14,12),balaM);
+  bala.scale.set(0.9,1.04,0.92);head.add(bala);
+  const eyeSlit=new THREE.Mesh(new THREE.CylinderGeometry(0.137,0.137,0.042,12,1,true,Math.PI-0.78,1.56),skinM);   // 眼缝略凸出球面才可见（远看是一条露眼缝）
+  eyeSlit.position.y=-0.02;head.add(eyeSlit);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.1,8),balaM);
+  neck.position.y=-0.16;head.add(neck);
   const helm=new THREE.Mesh(new THREE.SphereGeometry(0.172,14,10,0,TAU,0,Math.PI*0.55),helmM);
   helm.position.y=0.025;head.add(helm);
   const brim=new THREE.Mesh(new THREE.TorusGeometry(0.15,0.024,8,16),helmM);
@@ -217,29 +193,52 @@ function makeSoldier(t){
   const goggleBand=new THREE.Mesh(new THREE.TorusGeometry(0.148,0.022,6,16),darkM);
   goggleBand.rotation.x=Math.PI/2;goggleBand.position.y=0.045;head.add(goggleBand);
   const goggles=new THREE.Mesh(new THREE.BoxGeometry(0.23,0.06,0.05),new THREE.MeshStandardMaterial({color:0x14170f,roughness:0.25,metalness:0.45,envMapIntensity:0.85}));
-  goggles.position.set(0,0.045,0.12);head.add(goggles);
-  // ---- 步枪（真实 AK 模型，双手前伸） ----
+  goggles.position.set(0,0.045,-0.12);head.add(goggles);
+  // ---- 步枪（真实 AK 模型，枪口朝 -Z 即朝向玩家） ----
   const rifle=buildRifle();
-  rifle.position.set(0.09,0.3,0.2);rifle.rotation.y=-0.08;
+  rifle.position.set(0.09,0.3,-0.2);rifle.rotation.y=0.08;
   torso.add(rifle);
   const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:texGlowWarm,transparent:true,depthWrite:false}));
   flash.scale.set(0.001,0.001,1);flash.position.set(0,0.02,-0.62);rifle.add(flash);
   rifle.userData.flash=flash;
   rifle.userData.flashT=0;
-  // ---- 手臂（上臂/前臂胶囊 + 手套，持枪姿态） ----
+  // ---- 手臂：两段骨骼 + IK 落手到枪位（肘部自然下垂弯曲的持枪姿态，非僵尸平伸） ----
   const mkArm=(side)=>{
-    const sh=new THREE.Group();sh.position.set(side*0.26,0.5,0);torso.add(sh);
-    const up=capsuleMesh(0.055,0.2,cloth);up.rotation.x=Math.PI/2;up.position.z=0.12;sh.add(up);
-    const band=new THREE.Mesh(new THREE.CylinderGeometry(0.062,0.062,0.05,8),bandM);
-    band.rotation.x=Math.PI/2;band.position.z=0.12;if(side<0)sh.add(band);
-    const el=new THREE.Group();el.position.z=0.24;sh.add(el);
-    const fo=capsuleMesh(0.047,0.18,cloth);fo.rotation.x=Math.PI/2;fo.position.z=0.1;el.add(fo);
-    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.052,8,6),darkM);
-    hand.scale.set(0.9,0.85,1.25);hand.position.z=0.23;el.add(hand);
-    sh.rotation.y=-side*0.55;sh.rotation.x=-0.15;
-    el.rotation.y=side*0.8;
+    const sh=new THREE.Group();sh.position.set(side*0.26,0.5,0);sh.rotation.order='YXZ';torso.add(sh);
+    const L1=0.32,L2=0.29;                            // 上臂/前臂骨骼长
+    const up=capsuleMesh(0.055,L1-0.09,cloth);up.rotation.x=Math.PI/2;up.position.z=-L1/2;sh.add(up);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.05,8),bandM);
+    band.rotation.x=Math.PI/2;band.position.z=-L1*0.45;if(side<0)sh.add(band);
+    const el=new THREE.Group();el.position.z=-L1;sh.add(el);
+    const fo=capsuleMesh(0.047,L2-0.1,cloth);fo.rotation.x=Math.PI/2;fo.position.z=-L2*0.45;el.add(fo);
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.055,8,6),darkM);
+    hand.scale.set(0.9,0.85,1.3);hand.position.z=-L2;el.add(hand);
+    return{sh,el,hand,L1,L2};
   };
-  mkArm(-1);mkArm(1);
+  const armR=mkArm(1),armL=mkArm(-1);
+  /* 平面两骨 IK：肩→目标连线，上臂压低 α 角让肘垂在连线下方，前臂精确落手到目标 */
+  const poseArm=(arm,target)=>{
+    const S=arm.sh.position,toT=target.clone().sub(S);
+    const dist=Math.min(toT.length(),arm.L1+arm.L2-0.01);
+    const dir=toT.normalize();
+    const yaw=Math.atan2(-dir.x,-dir.z),pitch=Math.asin(clamp(dir.y,-1,1));
+    const a=Math.acos(clamp((arm.L1*arm.L1+dist*dist-arm.L2*arm.L2)/(2*arm.L1*dist),-1,1));
+    arm.sh.rotation.set(pitch-a,yaw,0);
+    const uDir=new THREE.Vector3(0,Math.sin(pitch-a),-Math.cos(pitch-a)).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+    const E=S.clone().add(uDir.multiplyScalar(arm.L1));
+    const f=target.clone().sub(E).normalize().applyAxisAngle(new THREE.Vector3(0,1,0),-yaw);
+    const fPitch=Math.atan2(f.y,-f.z);               // 前臂在瞄准面内的俯角
+    arm.el.rotation.set(fPitch-(pitch-a),0,0);       // 肘弯曲角 = 前臂俯角 − 上臂俯角
+  };
+  const poseHands=()=>{
+    const gs=rifle.scale.x;
+    const m=new THREE.Matrix4().compose(rifle.position,
+      new THREE.Quaternion().setFromEuler(rifle.rotation),rifle.scale.clone());
+    const at=(x,y,z)=>new THREE.Vector3(x,y,z).applyMatrix4(m);
+    poseArm(armR,at(0,-0.06,-0.07));                  // 右手：扳机位
+    poseArm(armL,at(0,0.01,-0.26/gs));                // 左手：护木位（枪放大时收近到臂展内）
+  };
+  poseHands();
   // ---- 腿（大腿/小腿胶囊 + 军靴） ----
   const mkLeg=(side)=>{
     const hip=new THREE.Group();hip.position.set(side*0.115,0.98,0);g.add(hip);
@@ -248,20 +247,20 @@ function makeSoldier(t){
     const shin=capsuleMesh(0.062,0.26,clothDark);shin.position.y=-0.2;knee.add(shin);
     const bootG=new THREE.Group();bootG.position.y=-0.42;knee.add(bootG);
     const boot=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.1,0.26),darkM);
-    boot.position.z=0.05;bootG.add(boot);
+    boot.position.z=-0.05;bootG.add(boot);
     const toe=new THREE.Mesh(new THREE.SphereGeometry(0.065,8,6),darkM);
-    toe.scale.set(1,0.8,1.1);toe.position.set(0,-0.02,0.16);bootG.add(toe);
+    toe.scale.set(1,0.8,1.1);toe.position.set(0,-0.02,-0.16);bootG.add(toe);
     return{hip,knee};
   };
   const legL=mkLeg(-1),legR=mkLeg(1);
   if(heavy){                                     // 重甲：胸板+护膝+肩甲
-    const plate=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.42,0.34),helmM);
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.4,0.3),helmM);
     plate.position.y=0.3;torso.add(plate);
     for(const s2 of[-1,1]){
       const pad=new THREE.Mesh(new THREE.SphereGeometry(0.13,10,8),helmM);
       pad.position.set(s2*0.31,0.52,0);torso.add(pad);
       const kneepad=new THREE.Mesh(new THREE.SphereGeometry(0.075,8,6),helmM);
-      kneepad.position.set(0,-0.02,0.06);
+      kneepad.position.set(0,-0.02,-0.06);
       (s2<0?legL:legR).knee.add(kneepad);
     }
   }
@@ -271,14 +270,15 @@ function makeSoldier(t){
       pad.position.set(s2*0.48,0.56,0);torso.add(pad);
     }
     const eye=new THREE.Sprite(new THREE.SpriteMaterial({map:texGlowRed,transparent:true,depthWrite:false}));
-    eye.scale.set(0.5,0.26,1);eye.position.set(0,0.045,0.15);head.add(eye);
+    eye.scale.set(0.5,0.26,1);eye.position.set(0,0.045,-0.15);head.add(eye);
     const mask=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.1,0.09,10),darkM);
-    mask.rotation.x=Math.PI/2;mask.position.set(0,-0.07,0.13);head.add(mask);
+    mask.rotation.x=Math.PI/2;mask.position.set(0,-0.07,-0.13);head.add(mask);
     rifle.scale.setScalar(1.5);
+    poseHands();                                     // 枪放大后重新解算手臂 IK
   }
   g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
   g.scale.setScalar(sc);
-  return{group:g,legL,legR,torso,rifle,mats};
+  return{group:g,legL,legR,torso,rifle,armR,armL,mats};
 }
 
 /* ---- 尸体贴花 ---- */

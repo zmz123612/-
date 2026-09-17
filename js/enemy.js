@@ -56,7 +56,7 @@ function makePickup(x,z,kind){
 function enemyFire(e){
   const p=player;
   e.mdl.rifle.userData.flashT=0.06;
-  const gy=terrainH(e.x,e.z)+1.35*e.mdl.group.scale.x;
+  const gy=e.mdl.group.position.y+1.35*e.mdl.group.scale.x;   // 以模型实时位置为准（泅渡时在水面）
   const eye=eyeY();
   let acc=p.flyZ>2?0.4:1;
   if(terrainH(p.x,p.z)<WATER_Y+0.3)acc*=0.5;   // 游泳中的目标只露头，更难命中
@@ -71,7 +71,8 @@ function updateEnemy(e,dt){
   e.t+=dt;e.flash=Math.max(0,e.flash-dt);e.hitT=Math.max(0,e.hitT-dt);
   const p=player;
   const d=dist2D(e.x,e.z,p.x,p.z);
-  const gy=terrainH(e.x,e.z);
+  const gy0=terrainH(e.x,e.z);
+  const gy=Math.max(gy0,WATER_Y-1.05);    // 深水处浮到水面游泳（头露出可被打中），不沉湖底
   const eye=eyeY();
   let see=losClear(e.x,gy+1.4,e.z,p.x,eye,p.z);
   // ==== 警戒判定：进入视野距离才被发现；飞行/潜行影响感知 ====
@@ -85,6 +86,7 @@ function updateEnemy(e,dt){
     }
   }
   let mvx=0,mvz=0,moving=false,spd=e.speed;
+  if(gy0<WATER_Y+0.3)spd*=0.72;                       // 泅渡减速（与玩家同速比）
   if(!e.alert){
     // ==== 巡逻态：在岗哨附近踱步，不主动接近玩家 ====
     e.patrolT-=dt;
@@ -165,7 +167,7 @@ function updateEnemy(e,dt){
       e.x+=(e.x-o.x)*k;e.z+=(e.z-o.z)*k;
     }
   }
-  {const dd=dist2D(e.x,e.z,p.x,p.z),min=0.95;
+  {const dd=dist2D(e.x,e.z,p.x,p.z),min=p.vehicleKind==='tank'?1.6:0.95;   // 坦克车体推挤半径更大，防穿模（留给碾压判定处理）
     if(dd<min&&dd>0.01){
       const k=(min-dd)/Math.max(0.01,dd);
       e.x+=(e.x-p.x)*k;e.z+=(e.z-p.z)*k;
@@ -173,7 +175,7 @@ function updateEnemy(e,dt){
   }
   // ---- 模型动画 ----
   const g=e.mdl.group;
-  const ty=terrainH(e.x,e.z);
+  const ty=Math.max(terrainH(e.x,e.z),WATER_Y-1.05);   // 移动后位置重算，同样钳到水面
   g.position.set(e.x,lerp(g.position.y||ty,ty,clamp(10*dt,0,1)),e.z);
   // 面向：战斗看玩家 / 巡逻看行走方向
   let face=Math.atan2(p.x-e.x,p.z-e.z);
@@ -184,8 +186,8 @@ function updateEnemy(e,dt){
   e.mdl.legL.hip.rotation.x=sw;e.mdl.legR.hip.rotation.x=-sw;
   e.mdl.legL.knee.rotation.x=Math.max(0.06,-sw)*0.9+0.1;
   e.mdl.legR.knee.rotation.x=Math.max(0.06,sw)*0.9+0.1;
-  // 躯干微倾
-  e.mdl.torso.rotation.x=e.alert&&moving?0.08:0.02;
+  // 躯干微倾（-Z 为正面：前倾）
+  e.mdl.torso.rotation.x=e.alert&&moving?-0.08:-0.02;
   // 受击/开火泛光 + 警戒红色描边（便于发现）
   const em=e.flash>0?0.55:(e.mdl.rifle.userData.flashT>0?0.4:0);
   const ar=e.alert?0.16:0;

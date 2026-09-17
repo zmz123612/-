@@ -124,7 +124,7 @@ function updateClones(dt){
       const a=Math.atan2(player.z-c.z,player.x-c.x)+Math.sin(c.t*2)*0.3;
       c.x+=Math.cos(a)*5.5*dt;c.z+=Math.sin(a)*5.5*dt;
     }
-    const ty=terrainH(c.x,c.z);
+    const ty=Math.max(terrainH(c.x,c.z),WATER_Y-1.05);   // 战友入水同样浮到水面
     c.mdl.group.position.set(c.x,lerp(c.mdl.group.position.y,ty,clamp(8*dt,0,1)),c.z);
     // 索敌开火（最近警戒敌人 35m 内）
     let tgt=null,bd=35;
@@ -259,7 +259,7 @@ function tryToggleVehicle(){
   if(dist2D(p.x,p.z,vehicle.x,vehicle.z)<5){
     p.vehicleKind=vehicle.kind;
     p.flyZ=0;
-    addFeed(vehicle.kind==='tank'?'🚗 驾驶坦克 · E开炮 / T下车':'✈ 驾驶直升机 · 自动升空 · E射击 / T下机','#f4d98a');
+    addFeed(vehicle.kind==='tank'?'🚗 驾驶坦克 · E开炮 · 行驶碾压敌军 / T下车':'✈ 驾驶直升机 · 自动升空 · E射击 / T下机','#f4d98a');
     popupMsg(vehicle.kind==='tank'?'🚗 坦克战!':'✈ 空中打击!');
     sfx.up();
   }
@@ -268,14 +268,22 @@ function tryToggleVehicle(){
 function updateVehicle(dt){
   if(!vehicle||vehicle.dead)return;
   const v=vehicle,p=player;
+  v.fireT=Math.max(0,v.fireT-dt);                     // 武器冷却计时（此前漏减，导致坦克/直升机打一发就哑火）
   v.rotorSpin+=dt*(v.kind==='heli'?(p.vehicleKind==='heli'?22:6):0);
   if(v.rotorRef){v.rotorRef.rotation.y=v.rotorSpin;}
   if(v.tailRotorRef){v.tailRotorRef.rotation.x=v.rotorSpin*1.4;}
   if(p.vehicleKind===v.kind){
     // 载具跟随玩家输入：位置由玩家移动驱动
+    const ox=v.x,oz=v.z;
     v.x=p.x;v.z=p.z;v.yaw=p.yaw;
     if(v.kind==='heli')v.alt=Math.min(12,v.alt+6*dt);      // 直线爬升到 12m
-    else v.alt=lerp(v.alt,0,clamp(2*dt,0,1));
+    else{
+      v.alt=lerp(v.alt,0,clamp(2*dt,0,1));
+      // 坦克碾压：行驶中履带范围内直接压垮（节流判定防每帧刷屏）
+      v.crushT=Math.max(0,(v.crushT||0)-dt);
+      const spd=Math.hypot(v.x-ox,v.z-oz)/Math.max(dt,1e-4);
+      if(spd>0.6&&v.crushT<=0){v.crushT=0.15;tankCrush(v);}
+    }
   }else{
     v.alt=Math.max(0,v.alt-5*dt);                            // 无人驾驶缓降
   }
@@ -295,6 +303,24 @@ function updateVehicle(dt){
   }
   // 载具光环脉动
   v.ring.material.opacity=0.55+0.25*Math.sin(tGlobal*3);
+}
+/* 坦克碾压判定：车体履带椭圆范围内压垮敌人（普通秒杀 / BOSS 持续受创） */
+function tankCrush(v){
+  const s=Math.sin(v.yaw),c=Math.cos(v.yaw);
+  let crushed=0;
+  for(const e of enemies){
+    if(e.dead)continue;
+    const dx=e.x-v.x,dz=e.z-v.z;
+    const lz=-(dx*s+dz*c);                    // 车体前后（车头为正，与 mesh 朝向一致）
+    const lx=dz*s-dx*c;                       // 车体左右
+    if((lx/1.85)**2+(lz/2.35)**2>=1)continue; // 履带覆盖范围（车宽2.6+履带 / 车长4.2）
+    if(e.type==='boss')damageEnemy(e,45,false);
+    else{damageEnemy(e,e.hp,false);crushed++;}
+  }
+  if(crushed>0){
+    shake=Math.max(shake,0.4);                // 颠簸感
+    addFeed(`🚗 碾压 ${crushed} 名敌军`,'#c9a23a');
+  }
 }
 /* 载具武器：坦克主炮（爆炸弹） / 直升机机炮（速射） */
 function vehicleFire(){

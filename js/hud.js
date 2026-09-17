@@ -262,24 +262,30 @@ function drawHUD(){
     ctx.fillStyle=v.hp/v.maxHp>0.35?(v.kind==='tank'?'#c9a23a':'#7ecbff'):'#d64545';
     ctx.fillRect(RW/2-102,70,204*clamp(v.hp/v.maxHp,0,1),9);
     ctx.textAlign='center';ctx.font='bold 11px sans-serif';ctx.fillStyle='#f0ece0';
-    ctx.fillText(`${v.kind==='tank'?'🚗 坦克':'✈ 直升机'} 耐久 ${Math.max(0,Math.round(v.hp))}${p.vehicleKind?' · E '+(v.kind==='tank'?'开炮':'射击')+' · T 下车':' · 走近按 T 乘坐'}`,RW/2,86);
+    ctx.fillText(`${v.kind==='tank'?'🚗 坦克':'✈ 直升机'} 耐久 ${Math.max(0,Math.round(v.hp))}${p.vehicleKind?(v.kind==='tank'?' · E 开炮 · 行驶碾压 · T 下车':' · E 射击 · T 下机'):' · 走近按 T 乘坐'}`,RW/2,86);
   }
   if(p.invincT>0){
     ctx.textAlign='center';ctx.font='bold 20px sans-serif';
     ctx.fillStyle=`rgba(255,210,74,${0.6+0.4*Math.sin(tGlobal*8)})`;
     ctx.fillText(`★ 无敌 ${p.invincT.toFixed(1)}s`,RW/2,RH*0.36);
   }
-  // 游泳提示：水色滤镜 + 状态文字（不会溺水，游向岸边即可）
-  if(terrainH(p.x,p.z)<WATER_Y+0.3){
+  // 游泳提示：水色滤镜 + 氧气条（耗尽后溺水持续掉血）
+  if(p.swim){
     const g3=ctx.createRadialGradient(RW/2,RH/2,RH*0.3,RW/2,RH/2,RH*0.8);
     g3.addColorStop(0,'rgba(30,80,140,0)');
-    g3.addColorStop(1,'rgba(30,80,140,0.25)');
+    g3.addColorStop(1,`rgba(30,80,140,${p.drowning?0.42:0.25})`);
     ctx.fillStyle=g3;ctx.fillRect(0,0,RW,RH);
-    ctx.textAlign='center';ctx.font='bold 14px sans-serif';
+    const o2=clamp(p.o2/p.o2Max,0,1),bw=170,bx=RW/2-bw/2,by=RH-138;
+    ctx.fillStyle='rgba(8,10,14,0.6)';ctx.beginPath();ctx.roundRect(bx-6,by-6,bw+12,19,5);ctx.fill();
+    ctx.fillStyle='#12202e';ctx.fillRect(bx,by,bw,7);
+    ctx.fillStyle=p.drowning?'#ff5a44':(o2<0.3?'#ffa04a':'#7ecbff');
+    ctx.fillRect(bx,by,bw*o2,7);
+    ctx.textAlign='center';ctx.font='bold 13px sans-serif';
+    const label=p.drowning?'⚠ 溺水掉血中 · 立刻上岸！':'🏊 游泳中 · 尽快上岸';
     ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,0.85)';
-    ctx.strokeText('🏊 游泳中 · 不会溺水 · 游向岸边即可',RW/2,RH-116);
-    ctx.fillStyle='#bfe3ff';
-    ctx.fillText('🏊 游泳中 · 不会溺水 · 游向岸边即可',RW/2,RH-116);
+    ctx.strokeText(label,RW/2,RH-104);
+    ctx.fillStyle=(p.drowning&&tGlobal%0.6<0.35)?'#ff6a50':'#bfe3ff';
+    ctx.fillText(label,RW/2,RH-104);
   }
   // 浮动伤害数字
   ctx.textAlign='center';

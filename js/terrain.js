@@ -49,6 +49,101 @@ function grassGeo(){
 }
 const GRASS_GEO=grassGeo();
 
+/* 树木：树位只随机一次，主干/树冠共用同一列表（永不分离）；高度互相咬合、随树缩放 */
+/* 阔叶树冠几何：5 个错位球瓣合并 + 顶点径向扰动 + 底部渐暗顶点色（体积感/破对称"蛋"） */
+function makeLeafCanopyGeo(){
+  const rng=mulberry(4242);
+  const parts=[[0,0.16,0,1.0],[0.56,-0.03,0.2,0.72],[-0.52,-0.07,0.24,0.66],[0.14,0.04,-0.56,0.68],[-0.06,0.58,0.05,0.56]];
+  const chunks=[];let total=0;
+  for(const p of parts){
+    const g=new THREE.SphereGeometry(p[3],9,7).toNonIndexed();
+    const pa=g.attributes.position;
+    for(let i=0;i<pa.count;i++){                 // 每瓣顶点径向随机扰动 → 凹凸轮廓
+      const d=1+(rng()-0.5)*0.24;
+      pa.setXYZ(i,pa.getX(i)*d,pa.getY(i)*d,pa.getZ(i)*d);
+    }
+    g.translate(p[0],p[1],p[2]);
+    chunks.push(pa.array);total+=pa.count;
+  }
+  const pos=new Float32Array(total*3),col=new Float32Array(total*3);
+  let o=0;
+  for(const a of chunks)for(let i=0;i<a.length;i++)pos[o++]=a[i];
+  for(let i=0;i<total;i++){
+    const sh=0.58+0.42*smooth(-0.85,0.9,pos[i*3+1]);   // 冠底阴影 → 冠顶受光
+    col[i*3]=sh;col[i*3+1]=sh;col[i*3+2]=sh;
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  geo.computeVertexNormals();
+  return geo;
+}
+/* 云杉树冠几何：三层锥叠出宝塔轮廓 */
+function makeSpruceGeo(){
+  const tiers=[[1.32,1.7,0.9],[0.98,1.55,1.85],[0.62,1.45,2.75]];
+  const chunks=[];let total=0;
+  for(const t of tiers){
+    const g=new THREE.ConeGeometry(t[0],t[1],8).toNonIndexed();
+    g.translate(0,t[2],0);
+    chunks.push(g.attributes.position.array);total+=g.attributes.position.count;
+  }
+  const pos=new Float32Array(total*3);
+  let o=0;
+  for(const a of chunks)for(let i=0;i<a.length;i++)pos[o++]=a[i];
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.computeVertexNormals();
+  return geo;
+}
+function plantTrees(group,obstacles,ox,oz,w,treeN,rng){
+  const snow=w.snow>0.45,dead=w.scorched>0.45;
+  const spots=[];
+  for(let i=0;i<treeN*3&&spots.length<treeN;i++){
+    const lx=rng()*CHUNK,lz=rng()*CHUNK;
+    const wx=ox+lx,wz=oz+lz;
+    const h=terrainH(wx,wz);
+    if(h<WATER_Y+0.6)continue;
+    spots.push({x:wx,h,z:wz,sc:0.75+rng()*0.55,rot:rng()*TAU,
+      sx:0.85+rng()*0.3,sz:0.85+rng()*0.3,cv:0.86+rng()*0.26});
+  }
+  if(!spots.length)return;
+  const d=new THREE.Object3D(),col=new THREE.Color();
+  const trunk=new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.13,0.21,2.4,6),
+    stdMat(dead?0x453a2c:0x54402c,0.95),spots.length);
+  let canopyGeo,canopyMat;
+  if(snow){canopyGeo=makeSpruceGeo();canopyMat=stdMat(0x2e4a34,0.92);}
+  else if(dead){canopyGeo=new THREE.ConeGeometry(0.6,1.8,7);canopyMat=stdMat(0x4a4034,0.95);}
+  else{canopyGeo=makeLeafCanopyGeo();
+    canopyMat=new THREE.MeshStandardMaterial({color:0x3f6a34,roughness:0.93,metalness:0,envMapIntensity:0.35,vertexColors:true});}
+  const canopy=new THREE.InstancedMesh(canopyGeo,canopyMat,spots.length);
+  spots.forEach((s,i)=>{
+    d.rotation.set(rng()*0.05,s.rot,rng()*0.05);
+    d.position.set(s.x,s.h+1.15*s.sc,s.z);
+    d.scale.set(s.sc,s.sc,s.sc);
+    d.updateMatrix();trunk.setMatrixAt(i,d.matrix);
+    d.rotation.set(0,s.rot,0);
+    if(snow){                                   // 云杉：塔锥从干中段起叠
+      d.position.set(s.x,s.h+1.3*s.sc,s.z);d.scale.set(s.sc*s.sx,s.sc,s.sc*s.sz);
+    }else if(dead){                             // 焦土枯树：稀疏尖冠
+      d.position.set(s.x,s.h+2.7*s.sc,s.z);d.scale.set(s.sc*0.9,s.sc*0.9,s.sc*0.9);
+    }else{                                      // 阔叶：多瓣冠咬在干顶
+      d.position.set(s.x,s.h+2.55*s.sc,s.z);
+      d.scale.set(s.sc*s.sx,s.sc*1.12,s.sc*s.sz);
+    }
+    d.updateMatrix();canopy.setMatrixAt(i,d.matrix);
+    canopy.setColorAt(i,col.setRGB(s.cv,s.cv,s.cv));
+    obstacles.push({x:s.x,z:s.z,r:0.45*s.sc});
+  });
+  trunk.instanceMatrix.needsUpdate=true;
+  canopy.instanceMatrix.needsUpdate=true;
+  if(canopy.instanceColor)canopy.instanceColor.needsUpdate=true;
+  for(const im of[trunk,canopy]){
+    im.castShadow=true;im.frustumCulled=false;
+    group.add(im);
+  }
+}
+
 function buildChunk(cx,cz){
   const g=getPlane();
   const pos=g.attributes.position;
@@ -96,25 +191,8 @@ function buildChunk(cx,cz){
   const w=biomeW(ox+CHUNK/2,oz+CHUNK/2);
   const treeN=Math.round(2700*(BIOMES.forest.tree*w.forest+BIOMES.plains.tree*w.plains+BIOMES.snow.tree*w.snow*0.9+BIOMES.desert.tree*w.desert+BIOMES.scorched.tree*w.scorched));
   const rockN=Math.round(2700*(BIOMES.plains.rock*w.plains+BIOMES.desert.rock*w.desert+BIOMES.snow.rock*w.snow+BIOMES.scorched.rock*w.scorched+BIOMES.forest.rock*w.forest));
-  const snowTree=w.snow>0.45,deadTree=w.scorched>0.45,cactus=w.desert>0.45;
-  if(treeN>0)put(
-    new THREE.CylinderGeometry(0.16,0.26,2.6,6),
-    stdMat(deadTree?0x3c332a:snowTree?0x4a3b2c:0x5a4630,0.95),
-    treeN,
-    (d,x,h,z,s,r,ob)=>{
-      d.position.set(x,h+1.15,z);d.rotation.set(r()*0.08,r()*TAU,r()*0.08);
-      const sc=0.8+s*0.9;d.scale.set(sc,sc,sc);
-      ob.push({x,z,r:0.5*sc});return true;
-    });
-  if(treeN>0)put(
-    snowTree?new THREE.ConeGeometry(1.6,3.8,8):deadTree?new THREE.ConeGeometry(0.7,1.9,5):new THREE.SphereGeometry(1.55,8,6),
-    stdMat(deadTree?0x4a4034:snowTree?0x2e4a34:0x3e6632,0.9),
-    treeN,
-    (d,x,h,z,s)=>{
-      d.position.set(x,h+(snowTree?4.1:deadTree?2.8:3.3),z);
-      const sc=0.8+s*0.9;d.scale.set(sc,sc,sc);d.rotation.set(0,0,0);
-      return true;
-    });
+  const cactus=w.desert>0.45;
+  if(treeN>0)plantTrees(group,obstacles,ox,oz,w,treeN,rng);
   if(rockN>0)put(
     rockGeo,
     new THREE.MeshStandardMaterial({color:0x8a857c,roughness:0.82,metalness:0.05,envMapIntensity:0.5,flatShading:true}),

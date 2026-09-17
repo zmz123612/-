@@ -34,6 +34,23 @@ function clearLevelEnts(){
   dropTimer=14;
   floats.length=0;
 }
+/* 金角螺旋找陆地出生点：候选中选周边水域最少的（避免落在湖岸边） */
+function nearestLandXZ(cx,cz){
+  const waterRatio=(x,z)=>{
+    let w=0,n=0;
+    for(let dx=-24;dx<=24;dx+=6)for(let dz=-24;dz<=24;dz+=6){n++;if(terrainH(x+dx,z+dz)<WATER_Y)w++;}
+    return w/n;
+  };
+  let best=null,bestR=1;
+  for(let i=0;i<900;i++){
+    const a=i*2.399963,r=3+3*Math.pow(i,0.6);
+    const x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
+    if(terrainH(x,z)<=WATER_Y+1.5)continue;
+    const wr=waterRatio(x,z);
+    if(wr<bestR){bestR=wr;best=[x,z];if(wr===0)break;}
+  }
+  return best||[cx,cz];
+}
 /* 每关空投到 700m 外新战区 */
 function relocate(){
   for(let i=0;i<30;i++){
@@ -98,7 +115,7 @@ function die(){
 }
 function startRun(lv){
   level=lv;player=newPlayer(loadSel);kills=0;tGame=0;shotsFired=0;
-  player.x=8;player.z=8;
+  [player.x,player.z]=nearestLandXZ(8,8);   // 固定种子下 (8,8) 是湖底，螺旋找最近陆地出生
   setupLevel(true);
   state='brief';stT=0;sfx.up();
   if(document.exitPointerLock)document.exitPointerLock();
