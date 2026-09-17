@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>穿越行动2 · 无限战场 · 开放世界FPS</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="gl" width="960" height="540"></canvas>
+  <canvas id="hud" width="960" height="540"></canvas>
+</div>
+<!-- 三方库 -->
+<script src="three.min.js"></script>
+<!-- Three.js 官方后期处理套件（SSAO 环境光遮蔽 / Bloom 泛光 / FXAA 抗锯齿） -->
+<script src="js/vendor/SimplexNoise.js"></script>
+<script src="js/vendor/CopyShader.js"></script>
+<script src="js/vendor/LuminosityHighPassShader.js"></script>
+<script src="js/vendor/FXAAShader.js"></script>
+<script src="js/vendor/GammaCorrectionShader.js"></script>
+<script src="js/vendor/SSAOShader.js"></script>
+<script src="js/vendor/EffectComposer.js"></script>
+<script src="js/vendor/RenderPass.js"></script>
+<script src="js/vendor/ShaderPass.js"></script>
+<script src="js/vendor/MaskPass.js"></script>
+<script src="js/vendor/UnrealBloomPass.js"></script>
+<script src="js/vendor/SSAOPass.js"></script>
+<!-- 基础层：画布 → 工具 → 音效 → 数据 → 全局状态 -->
+<script src="js/core.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/guns.js"></script>
+<script src="js/state.js"></script>
+<!-- 世界层：地形数学 → 场景 → 无限区块 → 模型 → 特效 -->
+<script src="js/world.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/terrain.js"></script>
+<script src="js/models.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/drops.js"></script>
+<!-- 玩法层：关卡 → 敌人 → 战斗 → 玩家 → 输入 -->
+<script src="js/levels.js"></script>
+<script src="js/enemy.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/player.js"></script>
+<script src="js/input.js"></script>
+<!-- 表现层：HUD → 菜单UI → 主循环 -->
+<script src="js/hud.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

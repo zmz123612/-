@@ -1,0 +1,8 @@
+html,body{margin:0;height:100%;background:#05070a;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;user-select:none;}
+#wrap{position:relative;}
+canvas{position:absolute;left:0;top:0;border-radius:6px;}
+#hud{cursor:crosshair;}
+/* 全屏模式：撑满屏幕、黑底居中 */
+#wrap:fullscreen{display:flex;align-items:center;justify-content:center;background:#05070a;width:100vw;height:100vh;}
+#wrap:-webkit-full-screen{display:flex;align-items:center;justify-content:center;background:#05070a;width:100vw;height:100vh;}
