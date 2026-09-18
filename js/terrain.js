@@ -146,6 +146,30 @@ const TREE_DEAD_MAT=new THREE.MeshStandardMaterial({color:0x4a4034,roughness:0.9
 for(const mat of[TREE_TRUNK_MAT,TREE_LEAF_MAT,TREE_SPRUCE_MAT,TREE_DEAD_MAT])SHARED_MATERIALS.add(mat);
 const GRASS_MAT_GREEN=createGrassMaterial(0x527a38);
 const GRASS_MAT_DRY=createGrassMaterial(0x5a4a30);
+/* 焦土废墟：主墙+垂直断墙+残墩合并成一组（单片 4×2.6 薄板远看像"悬空长方形板"） */
+const RUIN_GEO=(()=>{
+  const parts=[
+    [4.0,2.3,0.5, 0,1.15,0],        // 主墙
+    [0.5,1.4,1.7, -1.75,0.7,0.85],  // 垂直断墙（矮一截=被炸断）
+    [0.9,0.7,0.5, 1.6,0.35,-0.35],  // 残墩
+  ];
+  const ps=[],ns=[];let total=0;
+  for(const p of parts){
+    const b=new THREE.BoxGeometry(p[0],p[1],p[2]).toNonIndexed();
+    b.translate(p[3],p[4],p[5]);
+    ps.push(b.attributes.position.array);ns.push(b.attributes.normal.array);
+    total+=b.attributes.position.count;
+  }
+  const pos=new Float32Array(total*3),nor=new Float32Array(total*3);let o=0;
+  for(const a of ps)for(let i=0;i<a.length;i++)pos[o++]=a[i];
+  o=0;for(const a of ns)for(let i=0;i<a.length;i++)nor[o++]=a[i];
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+  return geo;
+})();
+const RUIN_MAT=new THREE.MeshStandardMaterial({color:0x6e6a60,roughness:0.78,metalness:0.1,envMapIntensity:0.5});
+SHARED_GEOMETRIES.add(RUIN_GEO);SHARED_MATERIALS.add(RUIN_MAT);
 
 /* 树木：局部采样地貌、坡度与间距；实例几何/材质跨区块共享，避免森林边缘突变和 GPU 重复占用 */
 function treeSpeciesAt(x,z,rng){
@@ -256,6 +280,8 @@ function buildChunk(cx,cz){
     return im;
   };
   const w=biomeW(ox+CHUNK/2,oz+CHUNK/2);
+  /* 人造/大件道具坡度检测：中心点采样会让宽道具在坡地半埋/悬空（视觉穿模） */
+  const slopeAt=(x,z)=>Math.hypot(terrainH(x+1.2,z)-terrainH(x-1.2,z),terrainH(x,z+1.2)-terrainH(x,z-1.2))/2.4;
   const treeN=Math.round(2700*(BIOMES.forest.tree*w.forest+BIOMES.plains.tree*w.plains+BIOMES.snow.tree*w.snow*0.9+BIOMES.desert.tree*w.desert+BIOMES.scorched.tree*w.scorched));
   const rockN=Math.round(2700*(BIOMES.plains.rock*w.plains+BIOMES.desert.rock*w.desert+BIOMES.snow.rock*w.snow+BIOMES.scorched.rock*w.scorched+BIOMES.forest.rock*w.forest));
   const cactus=w.desert>0.45;
@@ -291,13 +317,13 @@ function buildChunk(cx,cz){
       d.position.set(x,h+1,z);d.rotation.set(0,0,0);
       const sc=0.7+s*0.8;d.scale.set(sc,sc,sc);return true;
     });
-  // 焦土废墟
+  // 焦土废墟（断墙组）：只出现在低地缓坡——山顶/陡坡上的立墙远看像悬空板
   if(w.scorched>0.4)put(
-    new THREE.BoxGeometry(4,2.6,0.6),
-    stdMat(0x6e6a60,0.78,0.1,0.5),
+    RUIN_GEO,
+    RUIN_MAT,
     2+Math.round(3*w.scorched),
     (d,x,h,z,s,r,ob)=>{
-      if(h<WATER_Y+1.5)return false;
+      if(h<WATER_Y+1.5||h>16||slopeAt(x,z)>0.35)return false;
       d.position.set(x,h+1.2,z);d.rotation.set(0,r()*TAU,0);
       const sc=0.7+s*0.8;d.scale.set(sc,sc,sc);
       ob.push({x,z,r:2.4*sc});return true;
@@ -319,7 +345,7 @@ function buildChunk(cx,cz){
     stdMat(0x54402a,0.95,0,0.3),
     1+Math.round(2*w.forest),
     (d,x,h,z,s,r,ob)=>{
-      if(h<WATER_Y+1)  return false;
+      if(h<WATER_Y+1||slopeAt(x,z)>0.65)return false;
       d.position.set(x,h+0.18,z);d.rotation.set(Math.PI/2,r()*TAU,0);
       const sc=0.7+s*0.8;d.scale.set(sc,sc,sc);
       ob.push({x,z,r:1.2*sc});return true;
@@ -348,6 +374,7 @@ function buildChunk(cx,cz){
     stdMat(0x7a5c34,0.85,0,0.4),
     2+Math.round(rng()*3),
     (d,x,h,z,s,r,ob)=>{
+      if(slopeAt(x,z)>0.5)return false;
       d.position.set(x,h+0.55,z);d.rotation.set(0,r()*TAU,r()*0.05);
       const sc=0.8+s*0.6;d.scale.set(sc,sc,sc);
       ob.push({x,z,r:0.95*sc});return true;
@@ -357,6 +384,7 @@ function buildChunk(cx,cz){
     stdMat(0x5a6350,0.45,0.6,0.8),
     1+Math.round(rng()*2),
     (d,x,h,z,s,r,ob)=>{
+      if(slopeAt(x,z)>0.5)return false;
       d.position.set(x,h+0.55,z);d.rotation.set(0,0,r()*0.15-0.07);
       const sc=0.85+s*0.4;d.scale.set(sc,sc,sc);
       ob.push({x,z,r:0.6*sc});return true;
@@ -366,6 +394,7 @@ function buildChunk(cx,cz){
     stdMat(0x64604a,0.95,0,0.35),
     rng()<0.6?1:0,
     (d,x,h,z,s,r,ob)=>{
+      if(slopeAt(x,z)>0.42)return false;
       d.position.set(x,h+0.83,z);d.rotation.set(0,r()*TAU,0);
       ob.push({x,z,r:1.5});return true;
     });
@@ -374,7 +403,12 @@ function buildChunk(cx,cz){
     stdMat(0x64583c,0.88,0,0.4),
     rng()<0.7?1+Math.round(rng()*2):0,
     (d,x,h,z,s,r,ob)=>{
+      if(slopeAt(x,z)>0.3)return false;   // 3.4m 宽横板对坡最敏感，阈值最严
       d.position.set(x,h+0.42,z);d.rotation.set(0,r()*TAU,0);
+      // 顺坡对齐：沿围栏方向采样两端，绕局部 X 轴倾斜贴合坡面
+      const yaw=d.rotation.y;
+      const h1=terrainH(x-Math.sin(yaw)*1.7,z-Math.cos(yaw)*1.7),h2=terrainH(x+Math.sin(yaw)*1.7,z+Math.cos(yaw)*1.7);
+      d.rotation.x=Math.atan2(h2-h1,3.4);
       ob.push({x,z,r:1.7});return true;
     });
   // 电线杆
@@ -382,6 +416,7 @@ function buildChunk(cx,cz){
     stdMat(0x4e4432,0.88,0,0.4),
     rng()<0.5?1:0,
     (d,x,h,z,s,r,ob)=>{
+      if(slopeAt(x,z)>0.6)return false;
       d.position.set(x,h+3.2,z);d.rotation.set(r()*0.05,0,r()*0.05);
       ob.push({x,z,r:0.3});return true;
     });

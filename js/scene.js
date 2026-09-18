@@ -60,22 +60,26 @@ sunHalo.scale.set(340,340,1);scene.add(sunHalo);
 
 /* ---- 云 ---- */
 function cloudTex(){
-  const c=document.createElement('canvas');c.width=c.height=128;
+  const c=document.createElement('canvas');c.width=c.height=160;
   const g=c.getContext('2d');
-  for(let i=0;i<9;i++){
-    const x=20+Math.random()*88,y=40+Math.random()*48,r=14+Math.random()*22;
+  // 大量重叠软圆铺满横向区间：避免贴图四角留空让 Sprite 显出"矩形硬边"
+  for(let i=0;i<16;i++){
+    const x=24+Math.random()*112,y=58+Math.random()*44,r=18+Math.random()*26;
     const gr=g.createRadialGradient(x,y,2,x,y,r);
-    gr.addColorStop(0,'rgba(255,255,255,0.85)');gr.addColorStop(1,'rgba(255,255,255,0)');
+    gr.addColorStop(0,'rgba(255,255,255,0.5)');
+    gr.addColorStop(0.65,'rgba(255,255,255,0.28)');
+    gr.addColorStop(1,'rgba(255,255,255,0)');
     g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();
   }
-  return new THREE.CanvasTexture(c);
+  const t=new THREE.CanvasTexture(c);
+  return t;
 }
 const clouds=[];
 {const ct=cloudTex();
  for(let i=0;i<10;i++){
-   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:ct,transparent:true,opacity:0.55,fog:false,depthWrite:false}));
-   sp.scale.set(120+rnd(0,80),44+rnd(0,26),1);
-   sp.position.set(rnd(-400,400),rnd(90,150),rnd(-400,400));
+   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:ct,transparent:true,opacity:0.5,fog:false,depthWrite:false}));
+   sp.scale.set(90+rnd(0,60),36+rnd(0,20),1);   // 比例压到 ~2.5:1 并缩小：更像云团、不像平板
+   sp.position.set(rnd(-400,400),rnd(95,155),rnd(-400,400));
    sp.userData.v=rnd(1.2,3);
    scene.add(sp);clouds.push(sp);
  }}

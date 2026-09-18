@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-18T06:19:56.575Z",
+  "sessionId": "sess_e8edf351-38de-4536-8877-f76bfb5fd3b0",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "/Users/zmz/.zcode/cli/memories/projects/game-cd703c347328c285/memory/realism-test-vehicle-round.md",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 8,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

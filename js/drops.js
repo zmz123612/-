@@ -169,7 +169,7 @@ function spawnVehicle(kind){
   const g=new THREE.Group();
   const armor=()=>new THREE.MeshStandardMaterial({color:kind==='tank'?0x6a6a54:0x5a6a4c,roughness:0.6,metalness:0.35,envMapIntensity:0.6});
   const dark=()=>new THREE.MeshStandardMaterial({color:0x2e2e26,roughness:0.7,metalness:0.3});
-  let muzzleRef=null,turretRef=null,rotorRef=null,tailRotorRef=null;
+  let muzzleRef=null,turretRef=null,rotorRef=null,tailRotorRef=null,elevRef=null;
   let hiddenWhenRidden=[];   // 第一人称乘坐时隐藏的部件（车体/机身等大面遮挡物），下车恢复
   if(kind==='tank'){
     // 车体+履带+炮塔+炮管
@@ -188,13 +188,15 @@ function spawnVehicle(kind){
     const turret=new THREE.Group();turret.position.y=1.7;g.add(turret);
     const dome=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.7,2.0),armor());
     dome.castShadow=true;turret.add(dome);
+    // 炮耳轴 pivot：俯仰只作用于炮管，不动炮塔壳
+    const elev=new THREE.Group();elev.position.set(0,0.1,1.2);turret.add(elev);
     const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.16,3.2,10),dark());
-    barrel.rotation.x=Math.PI/2;barrel.position.set(0,0.1,2.4);turret.add(barrel);
+    barrel.rotation.x=Math.PI/2;barrel.position.set(0,0,1.2);elev.add(barrel);
     const brake=new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.5,10),dark());
-    brake.rotation.x=Math.PI/2;brake.position.set(0,0.1,4.05);turret.add(brake);
+    brake.rotation.x=Math.PI/2;brake.position.set(0,0,2.85);elev.add(brake);
     const hatch=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.16,10),dark());
     hatch.position.set(-0.4,0.42,-0.3);turret.add(hatch);
-    muzzleRef=brake;turretRef=turret;
+    muzzleRef=brake;turretRef=turret;elevRef=elev;
     // 第一人称驾驶时隐藏车体/履带/炮塔壳（近距大面遮挡视线），保留炮管作瞄准参照
     hiddenWhenRidden=[hull,slope,dome,hatch];
     g.children.forEach(c=>{if(c!==turret)hiddenWhenRidden.push(c);});   // 履带+负重轮（g 顶层除炮塔外全收）
@@ -245,7 +247,7 @@ function spawnVehicle(kind){
   scene.add(g);
   vehicle={kind,mesh:g,x,z,hp:kind==='tank'?800:500,maxHp:kind==='tank'?800:500,
     yaw:player.yaw,turretYaw:0,alt:0,fireT:0,rotorSpin:0,dead:false,
-    muzzleRef,turretRef,rotorRef,tailRotorRef,ring,hiddenWhenRidden};
+    muzzleRef,turretRef,rotorRef,tailRotorRef,elevRef,ring,hiddenWhenRidden};
   addFeed(`${kind==='tank'?'🚗 坦克':'✈ 直升机'} 已抵达 · 走近按 T 乘坐`,'#c9a23a');
   popupMsg(kind==='tank'?'🚗 坦克待命 · 按 T 乘坐':'✈ 直升机待命 · 按 T 乘坐');
 }
@@ -314,8 +316,11 @@ function updateVehicle(dt){
     const ahead=terrainH(v.x-Math.sin(v.yaw)*2,v.z-Math.cos(v.yaw)*2);
     const back=terrainH(v.x+Math.sin(v.yaw)*2,v.z+Math.cos(v.yaw)*2);
     v.mesh.rotation.x=lerp(v.mesh.rotation.x,Math.atan2(back-ahead,4)*0.7,clamp(5*dt,0,1));
-    // 炮塔朝玩家视线方向
-    if(v.turretRef)v.turretRef.rotation.y=lerp(v.turretRef.rotation.y,angDiff(v.yaw+Math.PI,p.yaw+Math.PI),clamp(6*dt,0,1));
+    // 炮塔朝玩家视线方向 + 炮管俯仰跟随视线（瞄准上/下时炮管真实抬头压低；rx 正=压低）
+    if(v.turretRef){
+      v.turretRef.rotation.y=lerp(v.turretRef.rotation.y,angDiff(v.yaw+Math.PI,p.yaw+Math.PI),clamp(6*dt,0,1));
+      if(v.elevRef)v.elevRef.rotation.x=lerp(v.elevRef.rotation.x,-clamp(p.pitch,-0.55,0.3)*0.85,clamp(5*dt,0,1));
+    }
   }
   if(v.kind==='heli'&&p.vehicleKind!=='heli'){
     // 待命旋翼慢转

@@ -24,10 +24,10 @@ function wrapText(txt,x,y,maxW,lh){
 let orbitA=0;
 function updateMenuCam(dt){
   orbitA+=dt*0.06;
-  const cx=Math.cos(orbitA)*30,cz=Math.sin(orbitA)*30;
+  const cx=Math.cos(orbitA)*40,cz=Math.sin(orbitA)*40;
   const gy=terrainH(8+cx,8+cz);
-  camera.position.set(8+cx,Math.max(gy,WATER_Y)+7,8+cz);
-  camera.lookAt(8,Math.max(terrainH(8,8),WATER_Y)+1,8);
+  camera.position.set(8+cx,Math.max(gy,WATER_Y)+11,8+cz);   // 高轨道：避免贴脸穿过多边形道具（帐篷近看像碎板）
+  camera.lookAt(8,Math.max(terrainH(8,8),WATER_Y)+2,8);
   sun.position.set(68,90,48);sun.target.position.set(8,0,8);
   sunSprite.position.set(68,110,48);sunHalo.position.set(68,110,48);
   skyDome.position.set(camera.position.x,0,camera.position.z);
