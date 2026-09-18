@@ -62,17 +62,18 @@ sunHalo.scale.set(340,340,1);scene.add(sunHalo);
 function cloudTex(){
   const c=document.createElement('canvas');c.width=c.height=160;
   const g=c.getContext('2d');
-  // 大量重叠软圆铺满横向区间：避免贴图四角留空让 Sprite 显出"矩形硬边"
-  for(let i=0;i<16;i++){
-    const x=24+Math.random()*112,y=58+Math.random()*44,r=18+Math.random()*26;
+  /* 每个软圆必须完整落在画布内（x∈[r,160-r]）：圆一旦被画布边缘裁切，
+     Sprite 就会显出矩形硬边——天空中"灰色长板/格栅板"的真身 */
+  for(let i=0;i<14;i++){
+    const r=16+Math.random()*24;
+    const x=r+2+Math.random()*(160-2*r-4),y=r+2+Math.random()*(160-2*r-4);
     const gr=g.createRadialGradient(x,y,2,x,y,r);
     gr.addColorStop(0,'rgba(255,255,255,0.5)');
-    gr.addColorStop(0.65,'rgba(255,255,255,0.28)');
+    gr.addColorStop(0.65,'rgba(255,255,255,0.26)');
     gr.addColorStop(1,'rgba(255,255,255,0)');
     g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();
   }
-  const t=new THREE.CanvasTexture(c);
-  return t;
+  return new THREE.CanvasTexture(c);
 }
 const clouds=[];
 {const ct=cloudTex();

@@ -282,6 +282,13 @@ function buildChunk(cx,cz){
   const w=biomeW(ox+CHUNK/2,oz+CHUNK/2);
   /* 人造/大件道具坡度检测：中心点采样会让宽道具在坡地半埋/悬空（视觉穿模） */
   const slopeAt=(x,z)=>Math.hypot(terrainH(x+1.2,z)-terrainH(x-1.2,z),terrainH(x,z+1.2)-terrainH(x,z-1.2))/2.4;
+  /* 棱线检测：位置比四周 12m 环带平均高出 1.2m 以上=山脊/坡顶，背景是天空——
+     立式板状物（废墟/围栏/电线杆/帐篷）在这里远看就是"天空中的长方形"，一律不生成 */
+  const onRidge=(x,z)=>{
+    const h=terrainH(x,z);let sum=0;
+    for(let a=0;a<TAU;a+=Math.PI/4)sum+=terrainH(x+Math.cos(a)*12,z+Math.sin(a)*12);
+    return h-sum/8>1.2;
+  };
   const treeN=Math.round(2700*(BIOMES.forest.tree*w.forest+BIOMES.plains.tree*w.plains+BIOMES.snow.tree*w.snow*0.9+BIOMES.desert.tree*w.desert+BIOMES.scorched.tree*w.scorched));
   const rockN=Math.round(2700*(BIOMES.plains.rock*w.plains+BIOMES.desert.rock*w.desert+BIOMES.snow.rock*w.snow+BIOMES.scorched.rock*w.scorched+BIOMES.forest.rock*w.forest));
   const cactus=w.desert>0.45;
@@ -317,13 +324,13 @@ function buildChunk(cx,cz){
       d.position.set(x,h+1,z);d.rotation.set(0,0,0);
       const sc=0.7+s*0.8;d.scale.set(sc,sc,sc);return true;
     });
-  // 焦土废墟（断墙组）：只出现在低地缓坡——山顶/陡坡上的立墙远看像悬空板
+  // 焦土废墟（断墙组）：低地缓坡且非棱线——山脊上的立墙远看像悬空板
   if(w.scorched>0.4)put(
     RUIN_GEO,
     RUIN_MAT,
     2+Math.round(3*w.scorched),
     (d,x,h,z,s,r,ob)=>{
-      if(h<WATER_Y+1.5||h>16||slopeAt(x,z)>0.35)return false;
+      if(h<WATER_Y+1.5||h>16||slopeAt(x,z)>0.35||onRidge(x,z))return false;
       d.position.set(x,h+1.2,z);d.rotation.set(0,r()*TAU,0);
       const sc=0.7+s*0.8;d.scale.set(sc,sc,sc);
       ob.push({x,z,r:2.4*sc});return true;
@@ -394,8 +401,8 @@ function buildChunk(cx,cz){
     stdMat(0x64604a,0.95,0,0.35),
     rng()<0.6?1:0,
     (d,x,h,z,s,r,ob)=>{
-      if(slopeAt(x,z)>0.42)return false;
-      d.position.set(x,h+0.83,z);d.rotation.set(0,r()*TAU,0);
+      if(slopeAt(x,z)>0.42||onRidge(x,z))return false;
+      d.position.set(x,h+0.78,z);d.rotation.set(0,r()*TAU,0);
       ob.push({x,z,r:1.5});return true;
     });
   // 围栏（矮墙障碍）
@@ -403,7 +410,7 @@ function buildChunk(cx,cz){
     stdMat(0x64583c,0.88,0,0.4),
     rng()<0.7?1+Math.round(rng()*2):0,
     (d,x,h,z,s,r,ob)=>{
-      if(slopeAt(x,z)>0.3)return false;   // 3.4m 宽横板对坡最敏感，阈值最严
+      if(slopeAt(x,z)>0.3||onRidge(x,z))return false;   // 3.4m 宽横板：坡最严 + 不上棱线
       d.position.set(x,h+0.42,z);d.rotation.set(0,r()*TAU,0);
       // 顺坡对齐：沿围栏方向采样两端，绕局部 X 轴倾斜贴合坡面
       const yaw=d.rotation.y;
@@ -416,7 +423,7 @@ function buildChunk(cx,cz){
     stdMat(0x4e4432,0.88,0,0.4),
     rng()<0.5?1:0,
     (d,x,h,z,s,r,ob)=>{
-      if(slopeAt(x,z)>0.6)return false;
+      if(slopeAt(x,z)>0.6||onRidge(x,z))return false;
       d.position.set(x,h+3.2,z);d.rotation.set(r()*0.05,0,r()*0.05);
       ob.push({x,z,r:0.3});return true;
     });

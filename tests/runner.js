@@ -31,7 +31,7 @@
   async function run(){
     results.length=0;cases.innerHTML='';done.dataset.ok='0';done.textContent='';
     sum.textContent='启动游戏中…';
-    frame.src='../index.html?test=1&v=14&t='+Date.now();
+    frame.src='../index.html?test=1&v=15&t='+Date.now();
     let T;
     try{T=await waitFor(()=>frame.contentWindow&&frame.contentWindow.__test&&frame.contentWindow.__dbg().state==='title');}
     catch(e){sum.textContent='❌ 游戏未能启动';record('启动',false,String(e));return finish();}

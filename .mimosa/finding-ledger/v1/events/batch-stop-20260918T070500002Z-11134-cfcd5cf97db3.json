@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260918T070500002Z-11134-cfcd5cf97db3",
+  "runId": "20260918T070500002Z-11134-cfcd5cf97db3",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "668d4d465954ecf81a8bc1389835e6a982d1b72c",
+  "diffHash": "9a2ba85839f741e2214e7e1d5e0e43accb8b14e30ec5666e486840b7ad805639",
+  "rulesVersion": "unavailable",
+  "sessionHash": "dbcb13fb6658f995e3119bc3c89d458859f72b16af906da116658c889829497b",
+  "reportRef": ".mimosa/reports/task-review-sess_e8edf351-38de-4536-8877-f76bfb5fd3b0-20260918T070500002Z-11134-cfcd5cf97db3.json",
+  "events": [
+    {
+      "eventId": "hook-2a27bebba43d62c3d50e759618aed67d",
+      "findingId": "mimosa-3d53bcbfd328f9479ab6edd8",
+      "type": "finding_observed",
+      "at": "2026-09-18T06:54:59.830Z",
+      "identity": {
+        "projectRelativeFile": "js/scene.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "8bebb770be54057e08b7f99267fefe35a643a52c9f6e515eeaad2d89d90b05c9",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 68,
+      "endLine": 68,
+      "reasonCode": "advisory",
+      "reportedToAgent": true,
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "evidenceHash": "8bebb770be54057e08b7f99267fefe35a643a52c9f6e515eeaad2d89d90b05c9"
+      },
+      "sequence": 0
+    },
+    {
+      "eventId": "hook-894710f2646b5126b68047d513b700a2",
+      "findingId": "mimosa-4bd08d5c711e09d3f927d298",
+      "type": "finding_observed",
+      "at": "2026-09-18T06:54:59.830Z",
+      "identity": {
+        "projectRelativeFile": "js/scene.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "4c33f2b3483a3b090a18dc41900c316a9f8d15df16bc1a2372bf7f1978579e44",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 69,
+      "endLine": 69,
+      "reasonCode": "advisory",
+      "reportedToAgent": true,
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "evidenceHash": "4c33f2b3483a3b090a18dc41900c316a9f8d15df16bc1a2372bf7f1978579e44"
+      },
+      "sequence": 1
+    },
+    {
+      "eventId": "hook-822a469a6800f54b2f79fcc8846b59e0",
+      "findingId": "mimosa-3d53bcbfd328f9479ab6edd8",
+      "type": "finding_observed",
+      "at": "2026-09-18T07:05:00.002Z",
+      "identity": {
+        "projectRelativeFile": "js/scene.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "8bebb770be54057e08b7f99267fefe35a643a52c9f6e515eeaad2d89d90b05c9",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 68,
+      "endLine": 68,
+      "reasonCode": "observe",
+      "reportedToAgent": false,
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "evidenceHash": "8bebb770be54057e08b7f99267fefe35a643a52c9f6e515eeaad2d89d90b05c9"
+      },
+      "sequence": 2
+    },
+    {
+      "eventId": "hook-2ee317aa96013cbb3d863a82b926df03",
+      "findingId": "mimosa-4bd08d5c711e09d3f927d298",
+      "type": "finding_observed",
+      "at": "2026-09-18T07:05:00.002Z",
+      "identity": {
+        "projectRelativeFile": "js/scene.js",
+        "ruleId": "security",
+        "codeEvidenceHash": "4c33f2b3483a3b090a18dc41900c316a9f8d15df16bc1a2372bf7f1978579e44",
+        "confidence": "stable"
+      },
+      "scope": "direct",
+      "line": 69,
+      "endLine": 69,
+      "reasonCode": "observe",
+      "reportedToAgent": false,
+      "evidence": {
+        "kind": "source",
+        "boundary": "candidate",
+        "producer": "deterministic",
+        "evidenceHash": "4c33f2b3483a3b090a18dc41900c316a9f8d15df16bc1a2372bf7f1978579e44"
+      },
+      "sequence": 3
+    }
+  ],
+  "observedFindingIds": [
+    "mimosa-3d53bcbfd328f9479ab6edd8",
+    "mimosa-4bd08d5c711e09d3f927d298"
+  ],
+  "verifiedFiles": [
+    {
+      "file": "js/scene.js",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "js/terrain.js",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "tests/runner.js",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-09-18T07:05:00.398Z"
+}
