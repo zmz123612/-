@@ -170,6 +170,7 @@ function spawnVehicle(kind){
   const armor=()=>new THREE.MeshStandardMaterial({color:kind==='tank'?0x6a6a54:0x5a6a4c,roughness:0.6,metalness:0.35,envMapIntensity:0.6});
   const dark=()=>new THREE.MeshStandardMaterial({color:0x2e2e26,roughness:0.7,metalness:0.3});
   let muzzleRef=null,turretRef=null,rotorRef=null,tailRotorRef=null;
+  let hiddenWhenRidden=[];   // 第一人称乘坐时隐藏的部件（车体/机身等大面遮挡物），下车恢复
   if(kind==='tank'){
     // 车体+履带+炮塔+炮管
     const hull=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,4.2),armor());
@@ -194,6 +195,9 @@ function spawnVehicle(kind){
     const hatch=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.16,10),dark());
     hatch.position.set(-0.4,0.42,-0.3);turret.add(hatch);
     muzzleRef=brake;turretRef=turret;
+    // 第一人称驾驶时隐藏车体/履带/炮塔壳（近距大面遮挡视线），保留炮管作瞄准参照
+    hiddenWhenRidden=[hull,slope,dome,hatch];
+    g.children.forEach(c=>{if(c!==turret)hiddenWhenRidden.push(c);});   // 履带+负重轮（g 顶层除炮塔外全收）
   }else{
     // 机身+尾梁+旋翼+滑橇
     const bodyGeo=THREE.CapsuleGeometry?new THREE.CapsuleGeometry(0.9,2.2,6,10):new THREE.SphereGeometry(1.1,10,8);
@@ -228,6 +232,9 @@ function spawnVehicle(kind){
     const gun=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,1.1,8),dark());
     gun.rotation.x=Math.PI/2;gun.position.set(0.25,1.0,1.6);g.add(gun);
     muzzleRef=gun;
+    // 第一人称乘坐：机身/座舱罩/旋翼/滑橇会包围相机（背面剔除产生"机身消失、旋翼分离悬浮"错觉），全部隐藏；
+    // 保留尾梁/尾桨（回头看有机体延续感）与机炮吊舱（右下瞄准参照）
+    g.children.forEach(c=>{if(c!==tailBoom&&c!==tailFin&&c!==tailRotor&&c!==gun)hiddenWhenRidden.push(c);});
   }
   // 光环标识
   const ring=new THREE.Mesh(new THREE.TorusGeometry(2.6,0.08,6,24),
@@ -238,18 +245,29 @@ function spawnVehicle(kind){
   scene.add(g);
   vehicle={kind,mesh:g,x,z,hp:kind==='tank'?800:500,maxHp:kind==='tank'?800:500,
     yaw:player.yaw,turretYaw:0,alt:0,fireT:0,rotorSpin:0,dead:false,
-    muzzleRef,turretRef,rotorRef,tailRotorRef,ring};
+    muzzleRef,turretRef,rotorRef,tailRotorRef,ring,hiddenWhenRidden};
   addFeed(`${kind==='tank'?'🚗 坦克':'✈ 直升机'} 已抵达 · 走近按 T 乘坐`,'#c9a23a');
   popupMsg(kind==='tank'?'🚗 坦克待命 · 按 T 乘坐':'✈ 直升机待命 · 按 T 乘坐');
+}
+/* 第一人称乘坐 ⇄ 第三人称待命：切换车体/机身部件可见性（防大面遮挡/背面剔除错觉） */
+function setRiddenHidden(v,riding){
+  if(v&&v.hiddenWhenRidden)for(const o of v.hiddenWhenRidden)o.visible=!riding;
 }
 /* 乘坐 / 离开 */
 function tryToggleVehicle(){
   if(!vehicle)return;
   const p=player;
-  if(p.vehicleKind){    // 下车
+  if(p.vehicleKind){    // 下车：找侧向安全落点（避水/避坡），找不到再回退原方向
     p.vehicleKind=null;
-    p.x=vehicle.x+Math.cos(vehicle.yaw+Math.PI/2)*3;
-    p.z=vehicle.z+Math.sin(vehicle.yaw+Math.PI/2)*3;
+    setRiddenHidden(vehicle,false);                    // 恢复整机可见（第三人称看待命载具）
+    let ex=null;
+    for(let i=0;i<8;i++){
+      const a=vehicle.yaw+Math.PI/2+i*Math.PI/4;
+      const x=vehicle.x+Math.cos(a)*3.2,z=vehicle.z+Math.sin(a)*3.2;
+      if(terrainH(x,z)>WATER_Y+0.4){ex=[x,z];break;}
+    }
+    if(ex){p.x=ex[0];p.z=ex[1];}
+    else{p.x=vehicle.x+Math.cos(vehicle.yaw+Math.PI/2)*3;p.z=vehicle.z+Math.sin(vehicle.yaw+Math.PI/2)*3;}
     p.flyZ=0;p.iT=1.2;
     vehicle.alt=0;
     addFeed('已离开载具','#e8e4da');
@@ -259,6 +277,7 @@ function tryToggleVehicle(){
   if(dist2D(p.x,p.z,vehicle.x,vehicle.z)<5){
     p.vehicleKind=vehicle.kind;
     p.flyZ=0;
+    setRiddenHidden(vehicle,true);                     // 隐藏车体/机身：第一人称座舱视野干净
     addFeed(vehicle.kind==='tank'?'🚗 驾驶坦克 · E开炮 · 行驶碾压敌军 / T下车':'✈ 驾驶直升机 · 自动升空 · E射击 / T下机','#f4d98a');
     popupMsg(vehicle.kind==='tank'?'🚗 坦克战!':'✈ 空中打击!');
     sfx.up();
@@ -328,9 +347,13 @@ function vehicleFire(){
   if(!v||v.fireT>0)return;
   if(v.kind==='tank'){
     v.fireT=1.6;
+    // 开火瞬间炮塔对齐视线再取炮口世界坐标：炮弹起点、弹道与准星三者一致
+    if(v.turretRef)v.turretRef.rotation.y=angDiff(v.yaw+Math.PI,p.yaw+Math.PI);
+    v.mesh.updateMatrixWorld(true);
     const mz=v.muzzleRef.getWorldPosition(new THREE.Vector3());
-    // 炮口朝玩家视线
-    const dir={x:-Math.sin(p.yaw),y:Math.sin(p.pitch)*0.5,z:-Math.cos(p.yaw)};
+    // 炮口朝玩家视线：俯角用完整 pitch（此前 *0.5 导致上下瞄准偏离准星）
+    const cp=Math.cos(p.pitch);
+    const dir={x:-Math.sin(p.yaw)*cp,y:Math.sin(p.pitch),z:-Math.cos(p.yaw)*cp};
     const dl=Math.hypot(dir.x,dir.y,dir.z);dir.x/=dl;dir.y/=dl;dir.z/=dl;
     // 炮弹（发光球，直线飞行，命中/落地爆炸）
     const shell=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,6),
@@ -343,9 +366,12 @@ function vehicleFire(){
   }else{
     v.fireT=0.09;
     const mz=v.muzzleRef.getWorldPosition(new THREE.Vector3());
-    const eye=eyeY();
     // 机炮：朝准星方向速射；优先 12° 锥内敌人（含自动对地吸附）
     let dir={x:-Math.sin(p.yaw)*Math.cos(p.pitch),y:Math.sin(p.pitch),z:-Math.cos(p.yaw)*Math.cos(p.pitch)};
+    // 准星射线从相机出发；机炮吊舱在相机前下方，把起点平移到炮口再瞄准同一点，避免视差
+    const aimDist=60;
+    const aim={x:camera.position.x+dir.x*aimDist,y:camera.position.y+dir.y*aimDist,z:camera.position.z+dir.z*aimDist};
+    dir={x:aim.x-mz.x,y:aim.y-mz.y,z:aim.z-mz.z};
     let tgt=null,bestAng=0.24;                       // ~14° 锥（空对地更宽）
     const gunRng=80;
     for(const e of enemies){
@@ -361,8 +387,8 @@ function vehicleFire(){
       const tx=tgt.x-mz.x,ty=terrainH(tgt.x,tgt.z)+1.1-mz.y,tz=tgt.z-mz.z;
       const tl=Math.sqrt(tx*tx+ty*ty+tz*tz);
       dir={x:lerp(dir.x,tx/tl,0.85),y:lerp(dir.y,ty/tl,0.85),z:lerp(dir.z,tz/tl,0.85)};
-      const dl=Math.hypot(dir.x,dir.y,dir.z);dir.x/=dl;dir.y/=dl;dir.z/=dl;
     }
+    const dl=Math.hypot(dir.x,dir.y,dir.z);dir.x/=dl;dir.y/=dl;dir.z/=dl;
     spawnTracer({x:mz.x,y:mz.y,z:mz.z},{x:mz.x+dir.x*40,y:mz.y+dir.y*40,z:mz.z+dir.z*40},0xaad4ff);
     hitscan({x:mz.x,y:mz.y,z:mz.z},dir,{dmg:16,cd:0.1,rng:80,spread:0.012,pellets:1,pierce:1,falloff:0.3,rocket:false},p);
     for(let i=0;i<2;i++)spawnP(mz.x,mz.y,mz.z,rnd(-1,1),rnd(0,1),rnd(-1,1),0.15,1,0.85,0.5);

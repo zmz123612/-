@@ -25,29 +25,66 @@ const rockGeo=(()=>{
 })();
 /* PBR 标准材质工厂：粗糙度 r / 金属度 m / 环境强度 e */
 const stdMat=(c,r=0.9,m=0,e=0.45)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m,envMapIntensity:e});
-const geoCache=[];
-function getPlane(){
-  if(geoCache.length)return geoCache.pop();
-  const g=new THREE.PlaneGeometry(CHUNK,CHUNK,SEG,SEG);
-  g.rotateX(-Math.PI/2);
-  return g;
-}
 function chunkKey(cx,cz){return cx+'_'+cz;}
 
-/* 草丛几何（双交叉面片） */
+/* 草丛几何：三组交叉弯曲叶片，避免重复矩形卡片感 */
 function grassGeo(){
   const g=new THREE.BufferGeometry();
-  const v=new Float32Array([
-    -0.22,0,0, 0.22,0,0, -0.14,0.42,0,
-    0.22,0,0, 0.14,0.42,0, -0.14,0.42,0,
-    0,0,-0.22, 0,0,0.22, 0,0.42,-0.14,
-    0,0,0.22, 0,0.42,0.14, 0,0.42,-0.14,
-  ]);
-  g.setAttribute('position',new THREE.BufferAttribute(v,3));
-  g.computeVertexNormals();
+  const pos=[],uv=[],idx=[];
+  const blades=[
+    {a:0,b:0.06,lean:0.09,w:0.18,h:0.52},
+    {a:Math.PI*0.5,b:-0.04,lean:-0.07,w:0.16,h:0.44},
+    {a:Math.PI*0.25,b:0.02,lean:0.12,w:0.12,h:0.38},
+  ];
+  for(const blade of blades){
+    const c=Math.cos(blade.a),s=Math.sin(blade.a),base=pos.length/3;
+    const point=(x,y,z)=>{const rx=x*c-z*s,rz=x*s+z*c;pos.push(rx,y,rz);};
+    point(-blade.w,0,0);point(blade.w,0,0);
+    point(blade.w*0.72,blade.h*0.58,blade.b+blade.lean*0.5);
+    point(blade.lean,blade.h,blade.b+blade.lean);
+    point(-blade.w*0.72,blade.h*0.58,blade.b+blade.lean*0.5);
+    uv.push(0,0,1,0,0.86,0.58,0.5,1,0.14,0.58);
+    idx.push(base,base+1,base+2,base,base+2,base+3,base,base+3,base+4);
+  }
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx);g.computeVertexNormals();
   return g;
 }
+function grassTexture(){
+  const c=document.createElement('canvas');c.width=c.height=64;
+  const x=c.getContext('2d');
+  const gr=x.createLinearGradient(0,64,0,0);
+  gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(0.62,'rgba(215,255,200,0.9)');gr.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=gr;x.beginPath();x.moveTo(5,64);x.quadraticCurveTo(30,30,28,4);x.quadraticCurveTo(34,30,59,64);x.closePath();x.fill();
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;return t;
+}
 const GRASS_GEO=grassGeo();
+const GRASS_TEX=grassTexture();
+const SHARED_GEOMETRIES=new Set([GRASS_GEO,rockGeo]);
+const SHARED_MATERIALS=new Set();
+const windMaterials=[];
+function createGrassMaterial(color){
+  const m=new THREE.MeshStandardMaterial({map:GRASS_TEX,color,alphaTest:0.42,side:THREE.DoubleSide,roughness:0.88,metalness:0,envMapIntensity:0.35,depthWrite:true});
+  m.userData.windUniform={value:0};
+  m.onBeforeCompile=shader=>{
+    shader.uniforms.uWindTime=m.userData.windUniform;
+    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nuniform float uWindTime;');
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      float bladeMask=smoothstep(0.04,0.48,position.y);
+      float phase=uWindTime*1.35+instanceMatrix[3].x*0.13+instanceMatrix[3].z*0.11;
+      transformed.x+=sin(phase+position.y*3.2)*0.045*bladeMask;
+      transformed.z+=cos(phase*0.83+position.y*2.4)*0.03*bladeMask;`);
+  };
+  windMaterials.push(m);SHARED_MATERIALS.add(m);return m;
+}
+function updateVegetationWind(time){
+  for(let i=windMaterials.length-1;i>=0;i--){
+    const m=windMaterials[i];
+    if(!m||!m.userData.windUniform){windMaterials.splice(i,1);continue;}
+    m.userData.windUniform.value=time;
+  }
+}
 
 /* 树木：树位只随机一次，主干/树冠共用同一列表（永不分离）；高度互相咬合、随树缩放 */
 /* 阔叶树冠几何：5 个错位球瓣合并 + 顶点径向扰动 + 底部渐暗顶点色（体积感/破对称"蛋"） */
@@ -78,74 +115,104 @@ function makeLeafCanopyGeo(){
   geo.computeVertexNormals();
   return geo;
 }
-/* 云杉树冠几何：三层锥叠出宝塔轮廓 */
+/* 云杉树冠几何：三层错位锥体共享于所有区块 */
 function makeSpruceGeo(){
   const tiers=[[1.32,1.7,0.9],[0.98,1.55,1.85],[0.62,1.45,2.75]];
   const chunks=[];let total=0;
   for(const t of tiers){
     const g=new THREE.ConeGeometry(t[0],t[1],8).toNonIndexed();
-    g.translate(0,t[2],0);
-    chunks.push(g.attributes.position.array);total+=g.attributes.position.count;
+    g.translate(0,t[2],0);chunks.push(g.attributes.position.array);total+=g.attributes.position.count;
   }
-  const pos=new Float32Array(total*3);
-  let o=0;
+  const pos=new Float32Array(total*3);let o=0;
   for(const a of chunks)for(let i=0;i<a.length;i++)pos[o++]=a[i];
-  const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  geo.computeVertexNormals();
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.computeVertexNormals();return geo;
+}
+/* 给无顶点色的几何补白色 color 属性：r128 实例颜色依赖 USE_COLOR 管线，缺失会渲染成黑 */
+function withWhiteVertexColors(geo){
+  const n=geo.attributes.position.count;
+  const col=new Float32Array(n*3).fill(1);
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
   return geo;
 }
+const TREE_TRUNK_GEO=withWhiteVertexColors(new THREE.CylinderGeometry(0.13,0.21,2.4,7));
+const LEAF_CANOPY_GEO=makeLeafCanopyGeo();
+const SPRUCE_CANOPY_GEO=withWhiteVertexColors(makeSpruceGeo());
+const DEAD_CANOPY_GEO=withWhiteVertexColors(new THREE.ConeGeometry(0.6,1.8,7));
+for(const geo of[TREE_TRUNK_GEO,LEAF_CANOPY_GEO,SPRUCE_CANOPY_GEO,DEAD_CANOPY_GEO])SHARED_GEOMETRIES.add(geo);
+const TREE_TRUNK_MAT=new THREE.MeshStandardMaterial({color:0x54402c,roughness:0.94,metalness:0,envMapIntensity:0.32,vertexColors:true});
+const TREE_LEAF_MAT=new THREE.MeshStandardMaterial({color:0x3f6a34,roughness:0.93,metalness:0,envMapIntensity:0.35,vertexColors:true});
+const TREE_SPRUCE_MAT=new THREE.MeshStandardMaterial({color:0x2e4a34,roughness:0.92,metalness:0,envMapIntensity:0.35,vertexColors:true});
+const TREE_DEAD_MAT=new THREE.MeshStandardMaterial({color:0x4a4034,roughness:0.95,metalness:0,envMapIntensity:0.3,vertexColors:true});
+for(const mat of[TREE_TRUNK_MAT,TREE_LEAF_MAT,TREE_SPRUCE_MAT,TREE_DEAD_MAT])SHARED_MATERIALS.add(mat);
+const GRASS_MAT_GREEN=createGrassMaterial(0x527a38);
+const GRASS_MAT_DRY=createGrassMaterial(0x5a4a30);
+
+/* 树木：局部采样地貌、坡度与间距；实例几何/材质跨区块共享，避免森林边缘突变和 GPU 重复占用 */
+function treeSpeciesAt(x,z,rng){
+  const w=biomeW(x,z);
+  if(w.snow>0.38&&w.snow>=w.forest&&w.snow>=w.plains)return'spruce';
+  if(w.scorched>0.34||w.desert>0.52)return'dead';
+  return'broadleaf';
+}
 function plantTrees(group,obstacles,ox,oz,w,treeN,rng){
-  const snow=w.snow>0.45,dead=w.scorched>0.45;
   const spots=[];
-  for(let i=0;i<treeN*3&&spots.length<treeN;i++){
-    const lx=rng()*CHUNK,lz=rng()*CHUNK;
-    const wx=ox+lx,wz=oz+lz;
+  for(let i=0;i<treeN*5&&spots.length<treeN;i++){
+    const wx=ox+rng()*CHUNK,wz=oz+rng()*CHUNK;
     const h=terrainH(wx,wz);
     if(h<WATER_Y+0.6)continue;
-    spots.push({x:wx,h,z:wz,sc:0.75+rng()*0.55,rot:rng()*TAU,
-      sx:0.85+rng()*0.3,sz:0.85+rng()*0.3,cv:0.86+rng()*0.26});
+    const e=0.8;
+    const slope=Math.hypot(terrainH(wx+e,wz)-terrainH(wx-e,wz),terrainH(wx,wz+e)-terrainH(wx,wz-e))/(2*e);
+    if(slope>1.45)continue;
+    const sc=0.75+rng()*0.55;
+    if(spots.some(s=>dist2D(s.x,s.z,wx,wz)<1.6*sc+1.1))continue;
+    spots.push({x:wx,h,z:wz,sc,rot:rng()*TAU,sx:0.85+rng()*0.3,sz:0.85+rng()*0.3,
+      lean:(rng()-0.5)*0.08,kind:treeSpeciesAt(wx,wz,rng),hue:rng()});
   }
   if(!spots.length)return;
-  const d=new THREE.Object3D(),col=new THREE.Color();
-  const trunk=new THREE.InstancedMesh(
-    new THREE.CylinderGeometry(0.13,0.21,2.4,6),
-    stdMat(dead?0x453a2c:0x54402c,0.95),spots.length);
-  let canopyGeo,canopyMat;
-  if(snow){canopyGeo=makeSpruceGeo();canopyMat=stdMat(0x2e4a34,0.92);}
-  else if(dead){canopyGeo=new THREE.ConeGeometry(0.6,1.8,7);canopyMat=stdMat(0x4a4034,0.95);}
-  else{canopyGeo=makeLeafCanopyGeo();
-    canopyMat=new THREE.MeshStandardMaterial({color:0x3f6a34,roughness:0.93,metalness:0,envMapIntensity:0.35,vertexColors:true});}
-  const canopy=new THREE.InstancedMesh(canopyGeo,canopyMat,spots.length);
+  const d=new THREE.Object3D(),trunkCol=new THREE.Color(),leafCol=new THREE.Color();
+  const trunk=new THREE.InstancedMesh(TREE_TRUNK_GEO,TREE_TRUNK_MAT,spots.length);
+  const groups={broadleaf:[],spruce:[],dead:[]};
+  spots.forEach(s=>groups[s.kind].push(s));
+  const canopies={};
+  for(const kind of['broadleaf','spruce','dead']){
+    const list=groups[kind];if(!list.length)continue;
+    const geo=kind==='broadleaf'?LEAF_CANOPY_GEO:kind==='spruce'?SPRUCE_CANOPY_GEO:DEAD_CANOPY_GEO;
+    const mat=kind==='broadleaf'?TREE_LEAF_MAT:kind==='spruce'?TREE_SPRUCE_MAT:TREE_DEAD_MAT;
+    canopies[kind]=new THREE.InstancedMesh(geo,mat,list.length);
+  }
   spots.forEach((s,i)=>{
-    d.rotation.set(rng()*0.05,s.rot,rng()*0.05);
-    d.position.set(s.x,s.h+1.15*s.sc,s.z);
-    d.scale.set(s.sc,s.sc,s.sc);
-    d.updateMatrix();trunk.setMatrixAt(i,d.matrix);
-    d.rotation.set(0,s.rot,0);
-    if(snow){                                   // 云杉：塔锥从干中段起叠
+    d.rotation.set(s.lean,s.rot,rng()*0.04);
+    d.position.set(s.x,s.h+1.15*s.sc,s.z);d.scale.set(s.sc,s.sc,s.sc);d.updateMatrix();trunk.setMatrixAt(i,d.matrix);
+    const trunkLight=s.kind==='dead'?0.27:0.32+s.hue*0.12;
+    trunkCol.setHSL(s.kind==='dead'?0.08:0.075,0.28,trunkLight);trunk.setColorAt(i,trunkCol);
+    d.rotation.set(0,s.rot,s.lean*0.5);
+    if(s.kind==='spruce'){
       d.position.set(s.x,s.h+1.3*s.sc,s.z);d.scale.set(s.sc*s.sx,s.sc,s.sc*s.sz);
-    }else if(dead){                             // 焦土枯树：稀疏尖冠
+    }else if(s.kind==='dead'){
       d.position.set(s.x,s.h+2.7*s.sc,s.z);d.scale.set(s.sc*0.9,s.sc*0.9,s.sc*0.9);
-    }else{                                      // 阔叶：多瓣冠咬在干顶
-      d.position.set(s.x,s.h+2.55*s.sc,s.z);
-      d.scale.set(s.sc*s.sx,s.sc*1.12,s.sc*s.sz);
+    }else{
+      d.position.set(s.x,s.h+2.55*s.sc,s.z);d.scale.set(s.sc*s.sx,s.sc*1.12,s.sc*s.sz);
     }
-    d.updateMatrix();canopy.setMatrixAt(i,d.matrix);
-    canopy.setColorAt(i,col.setRGB(s.cv,s.cv,s.cv));
+    d.updateMatrix();
+    const list=groups[s.kind],idx=list.indexOf(s);canopies[s.kind].setMatrixAt(idx,d.matrix);
+    if(s.kind==='spruce')leafCol.setHSL(0.31+s.hue*0.035,0.34,0.22+s.hue*0.08);
+    else if(s.kind==='dead')leafCol.setHSL(0.08+s.hue*0.04,0.25,0.22+s.hue*0.08);
+    else leafCol.setHSL(0.25+s.hue*0.07,0.42,0.25+s.hue*0.1);
+    canopies[s.kind].setColorAt(idx,leafCol);
     obstacles.push({x:s.x,z:s.z,r:0.45*s.sc});
   });
-  trunk.instanceMatrix.needsUpdate=true;
-  canopy.instanceMatrix.needsUpdate=true;
-  if(canopy.instanceColor)canopy.instanceColor.needsUpdate=true;
-  for(const im of[trunk,canopy]){
-    im.castShadow=true;im.frustumCulled=false;
-    group.add(im);
+  trunk.instanceMatrix.needsUpdate=true;if(trunk.instanceColor)trunk.instanceColor.needsUpdate=true;
+  trunk.frustumCulled=false;trunk.castShadow=true;group.add(trunk);
+  for(const kind of['broadleaf','spruce','dead']){
+    const im=canopies[kind];if(!im)continue;
+    im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;
+    im.frustumCulled=false;im.castShadow=true;group.add(im);
   }
 }
 
 function buildChunk(cx,cz){
-  const g=getPlane();
+  const g=new THREE.PlaneGeometry(CHUNK,CHUNK,SEG,SEG);
+  g.rotateX(-Math.PI/2);
   const pos=g.attributes.position;
   const ox=cx*CHUNK,oz=cz*CHUNK;
   const cols=new Float32Array(pos.count*3);
@@ -184,7 +251,7 @@ function buildChunk(cx,cz){
     }
     im.count=c2;
     im.instanceMatrix.needsUpdate=true;
-    im.castShadow=shadow;im.frustumCulled=false;
+    im.castShadow=shadow;im.frustumCulled=false;   // r128 无法按实例包围球剔除；由 updateChunkVisibility 按区块整组显隐
     group.add(im);
     return im;
   };
@@ -208,13 +275,13 @@ function buildChunk(cx,cz){
   const grassDens=BIOMES.plains.grass*w.plains+BIOMES.forest.grass*w.forest+BIOMES.scorched.grass*w.scorched;
   if(grassDens>0.15)put(
     GRASS_GEO,
-    new THREE.MeshStandardMaterial({color:w.scorched>0.4?0x5a4a30:0x527a38,side:THREE.DoubleSide,roughness:0.9,metalness:0,envMapIntensity:0.35}),
+    w.scorched>0.4?GRASS_MAT_DRY:GRASS_MAT_GREEN,
     Math.min(620,Math.round(620*grassDens)),
     (d,x,h,z,s,r)=>{
-      if(terrainH(x,z)<WATER_Y+0.5)return false;
+      const local=biomeW(x,z);
+      if(local.desert>0.58||local.snow>0.65||terrainH(x,z)<WATER_Y+0.5)return false;
       d.position.set(x,h+0.02,z);d.rotation.set(0,r()*TAU,0);
-      const sc=0.7+s*1.1;d.scale.set(sc,sc,sc);
-      return true;
+      const sc=0.7+s*1.1;d.scale.set(sc,sc,sc);return true;
     },false);
   if(cactus)put(
     new THREE.CylinderGeometry(0.22,0.28,2.2,6),
@@ -338,8 +405,11 @@ function updateChunks(px,pz,budget){
     if(Math.max(Math.abs(c.cx-ccx),Math.abs(c.cz-ccz))>VIEW+1){
       scene.remove(c.mesh);scene.remove(c.group);
       c.mesh.geometry.dispose();
-      geoCache.push(c.mesh.geometry);
-      c.group.children.forEach(im=>{im.geometry.dispose();im.material.dispose();});
+      // 共享几何/材质（树干树冠、草、岩石）跨区块存活，绝不能随单个区块释放
+      c.group.children.forEach(im=>{
+        if(!SHARED_GEOMETRIES.has(im.geometry))im.geometry.dispose();
+        if(!SHARED_MATERIALS.has(im.material))im.material.dispose();
+      });
       chunks.delete(k);
     }
   }

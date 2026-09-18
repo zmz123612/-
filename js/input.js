@@ -7,8 +7,11 @@ addEventListener('keydown',e=>{
   audio();
   const k=e.key.toLowerCase();
   if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();
-  if(!keys.has(k))onKey(k);
+  // 先记 held 再入集：onKey 内 pauseGame() 会清空 keys，若后置 add 会把当前键加回去，
+  // 造成"暂停后第一次按 P 被去重吞掉"的卡死假象
+  const wasHeld=keys.has(k);
   keys.add(k);
+  if(!wasHeld)onKey(k);
 });
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 hud.addEventListener('contextmenu',e=>e.preventDefault());
@@ -42,11 +45,11 @@ function onKey(k){
     if(document.fullscreenElement){
       // 全屏中：退出全屏（真实用户按键允许此操作）+ 暂停 → 桌面重现，等效窗口收起
       document.exitFullscreen().catch(()=>{});
-      if(state==='play')state='pause';
+      pauseGame();
       return;
     }
     if(document.exitPointerLock)document.exitPointerLock();
-    if(state==='play')state='pause';
+    pauseGame();
     if(blurCanvas())return;                     // 非全屏：暂停 + 画布收缩动效 + 失焦
   }
   // G：全屏开关（进入全屏后 F 即可一键收起）
@@ -69,7 +72,7 @@ function onKey(k){
   else if(state==='upgrade'&&['1','2','3'].includes(k))pickUpgrade(+k-1);
   else if(state==='dead'&&k==='enter')retryLevel();
   else if(state==='play'){
-    if(k==='p'){state='pause';if(document.exitPointerLock)document.exitPointerLock();}
+    if(k==='p')pauseGame();
     else if(k==='r')cycleGun();
     else if(k==='t')tryToggleVehicle();
     else{
@@ -77,7 +80,7 @@ function onKey(k){
       if(idx>=0&&GUNLIST[idx])switchGun(GUNLIST[idx]);
     }
   }
-  else if(state==='pause'&&(k==='p'||k==='enter'))state='play';
+  else if(state==='pause'&&(k==='p'||k==='enter'))resumeGame();
   else if(state==='pause'&&canvasCollapsed)state='play';   // F 收起后：任意键直接回战斗
   else if(state==='select'&&k==='escape')state='title';
 }

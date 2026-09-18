@@ -30,11 +30,26 @@ function perfTick(dt){
   }
 }
 
-/* ---- 页面不可见/失焦自动暂停（省 CPU） ---- */
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden&&state==='play'){state='pause';if(document.exitPointerLock)document.exitPointerLock();}
-});
-addEventListener('blur',()=>{if(state==='play'){state='pause';if(document.exitPointerLock)document.exitPointerLock();}});
+/* ---- 页面不可见/失焦自动暂停（省 CPU）；测试模式下豁免，iframe 内窗口拿不到焦点会立即假暂停 ---- */
+const TEST_MODE=new URLSearchParams(location.search).get('test')==='1';
+/* 统一暂停/恢复入口：进暂停清空按键与鼠标状态（失焦时松键会丢 keyup，残留按键会卡死后续输入） */
+function pauseGame(){
+  if(state!=='play')return;
+  state='pause';
+  keys.clear();
+  mouseFire=false;dragLook=false;fireLatch=false;
+  if(document.exitPointerLock)document.exitPointerLock();
+}
+function resumeGame(){
+  if(state!=='pause')return;
+  state='play';stT=0;
+  keys.clear();
+  player&&(player.iT=Math.max(player.iT||0,0.5));   // 恢复瞬间短暂无敌，防暂停界面挨打
+}
+if(!TEST_MODE){
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseGame();});
+  addEventListener('blur',()=>pauseGame());
+}
 
 let last=performance.now();
 let menuAcc=0;
@@ -44,6 +59,7 @@ function frame(now){
   if(dt<=0)return;
   dt=Math.min(0.05,dt);
   tGlobal+=dt;
+  updateVegetationWind(tGlobal);
   perfTick(dt);
   // 菜单类界面 30fps 足够（省一半渲染开销）；暂停页几乎静止，10fps
   const menuStates=['title','select','loadout','upgrade','win','pause'];
@@ -104,3 +120,33 @@ window.__dbg=()=>({state,level,hp:player&&Math.round(player.hp),enemies:enemies.
   biome:player?biomeAt(player.x,player.z):biomeAt(8,8),
   yaw:player&&+player.yaw.toFixed(2),pitch:player&&+player.pitch.toFixed(2),
   flyZ:player&&+player.flyZ.toFixed(1),chunks:chunks.size,locked});
+
+/* ---- 自动化测试接口（仅 ?test=1 挂载，生产不可见） ---- */
+if(new URLSearchParams(location.search).get('test')==='1'){
+  const finite=v=>Number.isFinite(v);
+  window.__test={
+    errs:()=>window.__errs.slice(),
+    start(){startRun(1);state='play';stT=9;},
+    dbg:()=>window.__dbg(),
+    terrainH:(x,z)=>terrainH(x,z),
+    cameraState:()=>({x:camera.position.x,y:camera.position.y,z:camera.position.z}),
+    playerState:()=>({x:player.x,z:player.z,flyZ:player.flyZ,vehicleKind:player.vehicleKind,hp:player.hp,finite:finite(player.x)&&finite(player.z)&&finite(player.hp)}),
+    setLook(yaw,pitch){player.yaw=yaw;player.pitch=pitch;updateCamera(0.016);},
+    step(n=1,dt=0.05){for(let i=0;i<n;i++)tick(dt);},   // 确定性步进：免疫后台标签 rAF 节流
+    movePlayer(dx,dz){player.x+=dx;player.z+=dz;updateChunks(player.x,player.z,49);updateCamera(0.016);},
+    chunkCount:()=>chunks.size,
+    rockets:()=>rockets.length,
+    sharedAlive:()=>({grass:!!GRASS_GEO.attributes.position,rock:!!rockGeo.attributes.position,
+      trunk:!!TREE_TRUNK_GEO.attributes.position,leaf:!!LEAF_CANOPY_GEO.attributes.position,
+      spruce:!!SPRUCE_CANOPY_GEO.attributes.position}),
+    spawnVehicle(kind){spawnVehicle(kind);},
+    vehicleState(){if(!vehicle)return null;return{kind:vehicle.kind,hp:vehicle.hp,fireT:vehicle.fireT,
+      alt:vehicle.alt,x:vehicle.x,z:vehicle.z,dead:vehicle.dead};},
+    enterVehicle(){if(!vehicle)return false;player.x=vehicle.x;player.z=vehicle.z;tryToggleVehicle();return player.vehicleKind===vehicle.kind;},
+    exitVehicle(){tryToggleVehicle();return player&&!player.vehicleKind;},
+    fireVehicle(n=1){const r0=rockets.length;let lastFireT=-1;
+      for(let i=0;i<n;i++){vehicleFire();if(vehicle)lastFireT=vehicle.fireT;}
+      return{rocketsFired:rockets.length-r0,fireT:lastFireT};},
+    damageVehicle(d){return damageVehicle(d);},
+  };
+}

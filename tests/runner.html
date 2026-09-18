@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>穿越行动2 · 自动化与边界测试</title>
+<style>
+  body{font:14px/1.6 -apple-system,"PingFang SC",monospace;background:#101410;color:#d8e4d0;margin:0;padding:24px;}
+  h1{font-size:18px;margin:0 0 12px;}
+  #sum{font-size:16px;margin-bottom:12px;padding:8px 12px;border-radius:6px;background:#1c241c;display:inline-block;}
+  .case{padding:6px 10px;border-left:3px solid #444;margin:4px 0;background:#151a15;border-radius:0 4px 4px 0;}
+  .pass{border-color:#5fbf5f;color:#a8e0a0;}
+  .fail{border-color:#d64545;color:#f0a0a0;}
+  .detail{color:#8a9a85;font-size:12px;white-space:pre-wrap;}
+  button{font:inherit;padding:6px 18px;background:#2c3a2c;color:#d8e4d0;border:1px solid #4a5a4a;border-radius:6px;cursor:pointer;}
+  #done[data-ok="1"]{outline:2px solid #5fbf5f;}
+</style>
+</head>
+<body>
+<h1>穿越行动2 · 自动测试运行器</h1>
+<p><button id="run">▶ 重新运行</button>（游戏在下方 iframe 中以 ?test=1 模式运行）</p>
+<div id="sum">等待开始…</div>
+<div id="cases"></div>
+<div id="done" data-ok="0"></div>
+<iframe id="game" width="480" height="270" style="display:block;margin-top:16px;border:1px solid #333;background:#000;"></iframe>
+<script src="runner.js?v=1"></script>
+</body>
+</html>

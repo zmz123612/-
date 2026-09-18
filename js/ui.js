@@ -211,8 +211,9 @@ function drawPause(){
   veil(0.58);
   ctx.textAlign='center';
   ctx.font='bold 38px sans-serif';ctx.fillStyle='#f0ece0';
-  ctx.fillText('暂 停',RW/2,RH/2-30);
+  ctx.fillText('暂 停',RW/2,RH/2-52);
+  button(RW/2-80,RH/2-14,160,44,'▶ 继续游戏',()=>resumeGame(),'#5a7a3a');
   ctx.font='12px sans-serif';ctx.fillStyle='rgba(232,228,218,0.6)';
-  ctx.fillText('P 继续 · M 音效 · E/左键 射击 · R/1-6 换枪 · SPACE 飞天',RW/2,RH/2+8);
-  ctx.fillText('G 全屏开关 · 全屏中按 F = 一键收起游戏',RW/2,RH/2+30);
+  ctx.fillText('P / Enter / 点按钮 继续 · M 音效 · E/左键 射击 · R/1-6 换枪',RW/2,RH/2+58);
+  ctx.fillText('G 全屏开关 · 全屏中按 F = 一键收起游戏',RW/2,RH/2+80);
 }

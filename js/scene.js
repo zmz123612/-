@@ -38,6 +38,7 @@ function paintSky(top,hor){
   }
   col.needsUpdate=true;
 }
+paintSky([0.45,0.62,0.80],[0.42,0.48,0.38]);   // 初始天空色：菜单态不跑 updateCamera，防止顶点色全 0 呈黑天
 
 /* ---- 发光贴图与太阳光晕 ---- */
 function glowTex(inner,outer){

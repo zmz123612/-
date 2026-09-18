@@ -16,11 +16,22 @@ function grantGuns(){
     }
   }
 }
-function eyeY(){
-  const lift=player.vehicleKind==='heli'?12:(player.vehicleKind==='tank'?2.4:0);   // 载具视角高度
-  // 深水中视线钳到水面（与 updateCamera 的 groundY 完全一致，保证子弹从相机位置射出）
-  return Math.max(terrainH(player.x,player.z),WATER_Y-0.4)+1.62+player.flyZ+lift;
+/* 载具座舱视点锚：坦克=炮塔舱口(地面+2.35)；直升机=驾驶舱内部(机头方向 1.45m、地面+alt+1.58)。
+   相机落在座舱玻璃椭球内——材质为 FrontSide，从内部看穿前向面，机鼻/旋翼不再挡视线。
+   eyeY / updateCamera / 敌人瞄准 / 载具开火统一走这里，保证"看到的=打到的"。 */
+const HELI_EYE_FWD=1.45;
+function eyePos(){
+  const p=player;
+  const groundY=Math.max(terrainH(p.x,p.z),WATER_Y-0.4);
+  if(p.vehicleKind==='tank')return{x:p.x,y:groundY+2.35,z:p.z};
+  if(p.vehicleKind==='heli'){
+    const yaw=vehicle?vehicle.yaw:p.yaw;   // 偏移随机体朝向（非视线），转头不会甩出座舱
+    return{x:p.x-Math.sin(yaw)*HELI_EYE_FWD,y:groundY+(vehicle?vehicle.alt:0)+1.58,
+      z:p.z-Math.cos(yaw)*HELI_EYE_FWD};
+  }
+  return{x:p.x,y:groundY+1.62+p.flyZ,z:p.z};
 }
+function eyeY(){return eyePos().y;}
 function switchGun(gid){
   const p=player;
   if(!p.owned[gid]||gid===p.gun||state!=='play')return;
@@ -171,8 +182,8 @@ function updateCamera(dt){
   const bobAmt=swimming
     ?Math.sin(p.walk)*0.06+Math.sin(tGlobal*1.8)*0.05
     :Math.sin(p.walk)*0.05*(p.flyZ<0.3?1:0.3);
-  const vLift=p.vehicleKind==='heli'?12:(p.vehicleKind==='tank'?2.4:0);   // 载具相机升高
-  camera.position.set(p.x,groundY+1.62+p.flyZ+vLift+bobAmt,p.z);
+  const ep=eyePos();   // 相机与眼点同源（座舱锚点），子弹/瞄准/所见一致
+  camera.position.set(ep.x,ep.y+bobAmt,ep.z);
   camera.rotation.set(p.pitch,p.yaw,0);
   if(shake>0){
     camera.rotation.x+=rnd(-shake,shake)*0.03;

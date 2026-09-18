@@ -2,18 +2,23 @@
 /* ============ 3D 模型：写实士兵 / 真枪模型 / 尸体贴花 ============ */
 
 /* ================= 程序纹理工厂 ================= */
-/* 数码迷彩贴图（4 色块马赛克，军装质感） */
+/* 数码迷彩贴图（4 色块马赛克 + 像素级噪点，军装质感） */
 function camoTexture(base,cols){
-  const c=document.createElement('canvas');c.width=c.height=64;
+  const c=document.createElement('canvas');c.width=c.height=128;
   const g=c.getContext('2d');
-  g.fillStyle=base;g.fillRect(0,0,64,64);
+  g.fillStyle=base;g.fillRect(0,0,128,128);
   const rng=mulberry(cols.length*997+13);
-  const px=4;
-  for(let y=0;y<64;y+=px)for(let x=0;x<64;x+=px){
+  const px=6;
+  for(let y=0;y<128;y+=px)for(let x=0;x<128;x+=px){
     if(rng()<0.42){
       g.fillStyle=cols[(rng()*cols.length)|0];
       g.fillRect(x,y,px,px);
     }
+  }
+  for(let i=0;i<900;i++){                     // 细颗粒磨损（布面质感）
+    const v=rng()*40|0;
+    g.fillStyle=`rgba(${v},${v},${v},${0.05+rng()*0.05})`;
+    g.fillRect(rng()*128,rng()*128,1.5,1.5);
   }
   const t=new THREE.CanvasTexture(c);
   t.wrapS=t.wrapT=THREE.RepeatWrapping;
@@ -170,6 +175,14 @@ function makeSoldier(t){
     const p=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.12,0.045),vestM);
     p.position.set(i*0.13,0.24,-0.155);torso.add(p);
   }
+  for(const s2 of[-1,1]){                             // 腰侧杂物袋
+    const sp=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.1,0.1),vestM);
+    sp.position.set(s2*0.225,0.1,0.02);torso.add(sp);
+  }
+  const nade=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.075,8),darkM);   // 胸前挂雷
+  nade.position.set(0.165,0.12,-0.14);nade.rotation.z=0.2;torso.add(nade);
+  const antenna=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.52,5),darkM); // 背包电台天线
+  antenna.position.set(0.1,0.55,0.2);antenna.rotation.z=-0.16;torso.add(antenna);
   for(const s2 of[-1,1]){                           // 肩章：加宽肩线，轮廓更挺
     const pad=new THREE.Mesh(new THREE.SphereGeometry(0.095,8,6),cloth);
     pad.scale.set(1.2,0.72,1);pad.position.set(s2*0.305,0.5,0);torso.add(pad);
@@ -184,6 +197,10 @@ function makeSoldier(t){
   bala.scale.set(0.9,1.04,0.92);head.add(bala);
   const eyeSlit=new THREE.Mesh(new THREE.CylinderGeometry(0.137,0.137,0.042,12,1,true,Math.PI-0.78,1.56),skinM);   // 眼缝略凸出球面才可见（远看是一条露眼缝）
   eyeSlit.position.y=-0.02;head.add(eyeSlit);
+  const nose=new THREE.Mesh(new THREE.BoxGeometry(0.024,0.03,0.026),skinM);   // 鼻部轮廓：近景面部立体感
+  nose.position.set(0,-0.052,-0.136);head.add(nose);
+  const strap=new THREE.Mesh(new THREE.TorusGeometry(0.138,0.012,5,14),darkM);  // 盔带：兜住下颌
+  strap.rotation.x=Math.PI/2+0.32;strap.position.y=-0.075;head.add(strap);
   const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.1,8),balaM);
   neck.position.y=-0.16;head.add(neck);
   const helm=new THREE.Mesh(new THREE.SphereGeometry(0.172,14,10,0,TAU,0,Math.PI*0.55),helmM);
@@ -210,6 +227,8 @@ function makeSoldier(t){
     const band=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.05,8),bandM);
     band.rotation.x=Math.PI/2;band.position.z=-L1*0.45;if(side<0)sh.add(band);
     const el=new THREE.Group();el.position.z=-L1;sh.add(el);
+    const epad=new THREE.Mesh(new THREE.SphereGeometry(0.06,7,5),vestM);   // 肘垫：随肘关节
+    epad.scale.set(1,1,0.8);el.add(epad);
     const fo=capsuleMesh(0.047,L2-0.1,cloth);fo.rotation.x=Math.PI/2;fo.position.z=-L2*0.45;el.add(fo);
     const hand=new THREE.Mesh(new THREE.SphereGeometry(0.055,8,6),darkM);
     hand.scale.set(0.9,0.85,1.3);hand.position.z=-L2;el.add(hand);
